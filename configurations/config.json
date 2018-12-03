@@ -1,0 +1,97 @@
+{
+  "active_model": "selfatt_textonly",
+  "models": {
+    "baseline": {
+      "hyperparameters": {
+        "learning_rate": 0.00008,
+        "inp_size": 314,
+        "dropout_rate": 0.5,
+        "batch_size": 16,
+        "epochs": 70,
+        "sep_token": "<sep>",
+        "FC_layers": 2,
+        "FC_size": 320
+      },
+      "Xtrain_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/train/train.json",
+      "Xdev_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/dev/dev.json",
+      "train_data": "data_preprocessing/saved_data_RumEval2019/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019/dev/dev.json",
+      "cuda": true,
+      "embeddings": "fasttext.en.300d",
+      "vector_cache": "../Figurative_Language/.vector_cache"
+    },
+    "baseline_LSTM": {
+      "hyperparameters": {
+        "learning_rate": 0.00008,
+        "dropout_rate": 0.5,
+        "batch_size": 16,
+        "epochs": 70,
+        "sep_token": "<sep>",
+        "RNN_nhidden": 314,
+        "RNN_layers": 1,
+        "RNN_input_dim": 314,
+        "RNN_clip": 0.5,
+        "FC_layers": 2,
+        "FC_size": 320
+      },
+      "Xtrain_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/train/train.json",
+      "Xdev_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/dev/dev.json",
+      "train_data": "data_preprocessing/saved_data_RumEval2019/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019/dev/dev.json",
+      "cuda": true,
+      "embeddings": "fasttext.en.300d",
+      "vector_cache": "../Figurative_Language/.vector_cache"
+    },
+    "selfatt_textonly": {
+      "hyperparameters": {
+        "learning_rate": 0.00001,
+        "dropout_rate": 0.5,
+        "batch_size": 16,
+        "epochs": 70,
+        "sep_token": "<sep>",
+        "RNN_nhidden": 300,
+        "RNN_layers": 1,
+        "RNN_input_dim": 300,
+        "RNN_clip": 0.5,
+        "ATTENTION_nhidden": 320,
+        "ATTENTION_hops": 10,
+        "FC_layers": 0,
+        "FC_size": 300,
+        "optimize_embeddings": false
+      },
+      "Xtrain_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/train/train.json",
+      "Xdev_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/dev/dev.json",
+      "train_data": "data_preprocessing/saved_data_RumEval2019/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019/dev/dev.json",
+      "cuda": true,
+      "embeddings": "fasttext.en.300d",
+      "vector_cache": "../Figurative_Language/.vector_cache"
+    },
+    "selfatt_text_and_baseline": {
+      "hyperparameters": {
+        "learning_rate": 0.00007,
+        "inp_size": 314,
+        "dropout_rate": 0.5,
+        "batch_size": 16,
+        "epochs": 100,
+        "sep_token": "<sep>",
+        "RNN_nhidden": 300,
+        "RNN_layers": 1,
+        "RNN_input_dim": 300,
+        "RNN_clip": 0.5,
+        "ATTENTION_nhidden": 320,
+        "ATTENTION_hops": 10,
+        "FC_layers": 2,
+        "FC_size": 314,
+        "optimize_embeddings": false
+      },
+      "Xtrain_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/train/train.json",
+      "Xdev_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/dev/dev.json",
+      "train_data": "data_preprocessing/saved_data_RumEval2019/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019/dev/dev.json",
+      "cuda": true,
+      "embeddings": "fasttext.en.300d",
+      "vector_cache": "../Figurative_Language/.vector_cache"
+    }
+  }
+}

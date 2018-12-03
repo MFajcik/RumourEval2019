@@ -3,31 +3,59 @@ Function in this file extracts features from conversations(threads) and returns
 dictionary with features
 """
 
-import numpy as np
+import re
 
 import nltk
-import re
-import help_prep_functions
-from tree2branches import tree2branches
+import numpy as np
+
+from data_preprocessing.help_prep_functions import sumw2v, getW2vCosineSimilarity
+from data_preprocessing.text_preprocessing import preprocess_text
+from data_preprocessing.tree2branches import tree2branches
+from utils import DotDict
+
+
+def initopts(o):
+    o.stopwords_file = ""
+    o.remove_puncuation = False
+    o.remove_stop_words = False
+    o.postag_words = False
+    o.lemmatize_words = False
+    o.num_replacement = "<num>"
+    o.replace_special_tags = True
+    o.special_tag_replacement = "#"
+    o.to_lowercase = True
+    o.replace_nums = False  # Nums are important, since rumour may be lying about count
+    o.count_words = False
+    o.remove_backslash_text = True
+    o.eos = "<eos>"
+    o.add_eos = True
+
+    o.returnbiglettervector = True
+    o.returnposvector = True
+    return o
 
 
 def extract_thread_features(conversation):
     feature_dict = {}
-
+    # Tokenize
+    # Regexp replaces all except non-words and numbers with
+    # empty
     tw = conversation['source']
     tokens = nltk.word_tokenize(re.sub(r'([^\s\w]|_)+', '',
                                        tw['text'].lower()))
 
     otherthreadtweets = ''
     for response in conversation['replies']:
-        
         otherthreadtweets += ' ' + response['text']
-            
+
     otherthreadtokens = nltk.word_tokenize(re.sub(r'([^\s\w]|_)+', '',
                                                   otherthreadtweets.lower()))
 
-
     raw_txt = tw['text']
+    feature_dict['raw_text'] = raw_txt
+    feature_dict['spacy_processed_text'], \
+    feature_dict['spacy_processed_BLvec'], \
+    feature_dict['spacy_processed_POSvec'] = preprocess_text(raw_txt, initopts(DotDict()))
     feature_dict['hasqmark'] = 0
     if tw['text'].find('?') >= 0:
         feature_dict['hasqmark'] = 1
@@ -58,9 +86,9 @@ def extract_thread_features(conversation):
             feature_dict['hasnegation'] += 1
     feature_dict['charcount'] = len(tw['text'])
     feature_dict['wordcount'] = len(nltk.word_tokenize(re.sub(r'([^\s\w]|_)+',
-                                    '', tw['text'].lower())))
+                                                              '', tw['text'].lower())))
     swearwords = []
-    with open('data/badwords.txt', 'r') as f:
+    with open('data_preprocessing/data/badwords.txt', 'r') as f:
         for line in f:
             swearwords.append(line.strip().lower())
     feature_dict['hasswearwords'] = 0
@@ -68,32 +96,32 @@ def extract_thread_features(conversation):
         if token in swearwords:
             feature_dict['hasswearwords'] += 1
     uppers = [l for l in raw_txt if l.isupper()]
-    feature_dict['capitalratio'] = float(len(uppers))/len(raw_txt)
-    feature_dict['Word2VecSimilarityWrtOther'] = help_prep_functions.getW2vCosineSimilarity(
-                                                 tokens, otherthreadtokens)
-    feature_dict['avgw2v'] = help_prep_functions.sumw2v(tw, avg=True)
+    feature_dict['capitalratio'] = float(len(uppers)) / len(raw_txt)
+    feature_dict['Word2VecSimilarityWrtOther'] = getW2vCosineSimilarity(
+        tokens, otherthreadtokens)
+    feature_dict['avgw2v'] = sumw2v(tw, avg=True)
     postag_tuples = nltk.pos_tag(tokens)
     postag_list = [x[1] for x in postag_tuples]
     possible_postags = ['WRB', 'WP$', 'WP', 'WDT', 'VBZ', 'VBP', 'VBN', 'VBG',
                         'VBD', 'VB', 'UH', 'TO', 'SYM', 'RP', 'RBS', 'RBR',
-                        'RB', 'PRP$', 'PRP',  'POS', 'PDT', 'NNS', 'NNPS',
+                        'RB', 'PRP$', 'PRP', 'POS', 'PDT', 'NNS', 'NNPS',
                         'NNP', 'NN', 'MD', 'LS', 'JJS', 'JJR', 'JJ', 'IN',
                         'FW', 'EX', 'DT', 'CD', 'CC']
     postag_binary = np.zeros(len(possible_postags))
     for tok in postag_list:
         postag_binary[possible_postags.index(tok)] = 1
     feature_dict['pos'] = postag_binary
-    false_synonyms = ['false',  'bogus',  'deceitful',  'dishonest',
-                      'distorted',  'erroneous',  'fake', 'fanciful',
-                      'faulty',  'fictitious',  'fraudulent',
-                      'improper',  'inaccurate',  'incorrect',
+    false_synonyms = ['false', 'bogus', 'deceitful', 'dishonest',
+                      'distorted', 'erroneous', 'fake', 'fanciful',
+                      'faulty', 'fictitious', 'fraudulent',
+                      'improper', 'inaccurate', 'incorrect',
                       'invalid', 'misleading', 'mistaken', 'phony',
                       'specious', 'spurious', 'unfounded', 'unreal',
-                      'untrue',  'untruthful',  'apocryphal',  'beguiling',
-                      'casuistic',  'concocted', 'cooked-up',
+                      'untrue', 'untruthful', 'apocryphal', 'beguiling',
+                      'casuistic', 'concocted', 'cooked-up',
                       'counterfactual', 'deceiving', 'delusive', 'ersatz',
-                      'fallacious', 'fishy',  'illusive',  'imaginary',
-                      'inexact',  'lying',  'mendacious',
+                      'fallacious', 'fishy', 'illusive', 'imaginary',
+                      'inexact', 'lying', 'mendacious',
                       'misrepresentative', 'off the mark', 'sham',
                       'sophistical', 'trumped up', 'unsound']
     false_antonyms = ['accurate', 'authentic', 'correct', 'fair', 'faithful',
@@ -129,7 +157,7 @@ def extract_thread_features(conversation):
     if 'rumour' in tokens or 'gossip' in tokens or 'hoax' in tokens:
         feature_dict['src_rumour'] = 1
     if ('rumour' in otherthreadtokens) or ('gossip' in otherthreadtokens) or (
-                                                'hoax' in otherthreadtokens):
+            'hoax' in otherthreadtokens):
         feature_dict['thread_rumour'] = 1
     whwords = ['what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why',
                'how']
@@ -226,11 +254,11 @@ def extract_thread_features(conversation):
             if verb in tw['text'].lower():
                 feature_dict[k] += 1
     for k in SpeechAct.keys():
-        feature_dict['thread_'+k] = 0
+        feature_dict['thread_' + k] = 0
         for verb in SpeechAct[k]:
             for resptw in conversation['replies']:
                 if verb in resptw['text'].lower():
-                    feature_dict['thread_'+k] += 1
+                    feature_dict['thread_' + k] += 1
 
     return feature_dict
 
@@ -241,39 +269,39 @@ def extract_thread_features_incl_response(conversation):
     source_features['Word2VecSimilarityWrtSource'] = 0
     source_features['Word2VecSimilarityWrtPrev'] = 0
     srctokens = nltk.word_tokenize(re.sub(
-                                   r'([^\s\w]|_)+', '',
-                                   conversation['source']['text'].lower()))
+        r'([^\s\w]|_)+', '',
+        conversation['source']['text'].lower()))
     fullthread_featdict = {}
     fullthread_featdict[conversation['source']['id_str']] = source_features
-    
+
     for tw in conversation['replies']:
         feature_dict = {}
         feature_dict['issource'] = 0
         tokens = nltk.word_tokenize(re.sub(r'([^\s\w]|_)+', '',
                                            tw['text'].lower()))
         otherthreadtweets = ''
-        otherthreadtweets += conversation['source']['text'] 
-   
-            
+        otherthreadtweets += conversation['source']['text']
+
         for response in conversation['replies']:
             otherthreadtweets += ' ' + response['text']
-                
+
         otherthreadtokens = nltk.word_tokenize(re.sub(
-                                               r'([^\s\w]|_)+', '',
-                                               otherthreadtweets.lower()))
+            r'([^\s\w]|_)+', '',
+            otherthreadtweets.lower()))
         branches = tree2branches(conversation['structure'])
         for branch in branches:
             if tw['id_str'] in branch:
-                if branch.index(tw['id_str'])-1 == 0:
+                if branch.index(tw['id_str']) - 1 == 0:
                     prevtokens = srctokens
                 else:
-                    prev_id = branch[branch.index(tw['id_str'])-1]
+                    prev_id = branch[branch.index(tw['id_str']) - 1]
+                    # Find conversation text for the id
                     for ptw in conversation['replies']:
                         if ptw['id_str'] == prev_id:
                             prevtokens = nltk.word_tokenize(re.sub(
-                                                       r'([^\s\w]|_)+',
-                                                       '',
-                                                       ptw['text'].lower()))
+                                r'([^\s\w]|_)+',
+                                '',
+                                ptw['text'].lower()))
                             break
             else:
                 prevtokens = []
@@ -298,7 +326,7 @@ def extract_thread_features_incl_response(conversation):
         if (tw['text'].find('picpicpic') >= 0) or (
                 tw['text'].find('pic.twitter.com') >= 0) or (
                 tw['text'].find('instagr.am') >= 0):
-                feature_dict['haspic'] = 1
+            feature_dict['haspic'] = 1
         feature_dict['hasnegation'] = 0
         negationwords = ['not', 'no', 'nobody', 'nothing', 'none', 'never',
                          'neither', 'nor', 'nowhere', 'hardly', 'scarcely',
@@ -309,11 +337,11 @@ def extract_thread_features_incl_response(conversation):
                 feature_dict['hasnegation'] += 1
         feature_dict['charcount'] = len(tw['text'])
         feature_dict['wordcount'] = len(nltk.word_tokenize(re.sub(
-                                                         r'([^\s\w]|_)+',
-                                                         '',
-                                                         tw['text'].lower())))
+            r'([^\s\w]|_)+',
+            '',
+            tw['text'].lower())))
         swearwords = []
-        with open('data/badwords.txt', 'r') as f:
+        with open('data_preprocessing/data/badwords.txt', 'r') as f:
             for line in f:
                 swearwords.append(line.strip().lower())
         feature_dict['hasswearwords'] = 0
@@ -321,21 +349,27 @@ def extract_thread_features_incl_response(conversation):
             if token in swearwords:
                 feature_dict['hasswearwords'] += 1
         uppers = [l for l in raw_txt if l.isupper()]
-        
+
         l = len(raw_txt)
-        if l!=0:
-            feature_dict['capitalratio'] = float(len(uppers))/l
+        if l != 0:
+            feature_dict['capitalratio'] = float(len(uppers)) / l
         else:
             feature_dict['capitalratio'] = 0
-        feature_dict['Word2VecSimilarityWrtOther'] = help_prep_functions.getW2vCosineSimilarity(
-                                                     tokens, otherthreadtokens)
-        feature_dict['Word2VecSimilarityWrtSource'] = help_prep_functions.getW2vCosineSimilarity(
-                                                             tokens, srctokens)
-        feature_dict['Word2VecSimilarityWrtPrev'] = help_prep_functions.getW2vCosineSimilarity(
-                                                            tokens, prevtokens)
-        feature_dict['avgw2v'] = help_prep_functions.sumw2v(
-                                                        tw,
-                                                        avg=True)
+        feature_dict['Word2VecSimilarityWrtOther'] = getW2vCosineSimilarity(
+            tokens, otherthreadtokens)
+        feature_dict['Word2VecSimilarityWrtSource'] = getW2vCosineSimilarity(
+            tokens, srctokens)
+        feature_dict['Word2VecSimilarityWrtPrev'] = getW2vCosineSimilarity(
+            tokens, prevtokens)
+        feature_dict['avgw2v'] = sumw2v(
+            tw,
+            avg=True)
+
+        # Added textual features
+        feature_dict['raw_text'] = raw_txt
+        feature_dict['spacy_processed_text'], \
+        feature_dict['spacy_processed_BLvec'], \
+        feature_dict['spacy_processed_POSvec'] = preprocess_text(raw_txt, initopts(DotDict()))
 
         feature_dict['src_usr_hasurl'] = 0
 
@@ -343,7 +377,7 @@ def extract_thread_features_incl_response(conversation):
         postag_list = [x[1] for x in postag_tuples]
         possible_postags = ['WRB', 'WP$', 'WP', 'WDT', 'VBZ', 'VBP', 'VBN',
                             'VBG', 'VBD', 'VB', 'UH', 'TO', 'SYM', 'RP', 'RBS',
-                            'RBR', 'RB', 'PRP$', 'PRP',  'POS', 'PDT', 'NNS',
+                            'RBR', 'RB', 'PRP$', 'PRP', 'POS', 'PDT', 'NNS',
                             'NNPS', 'NNP', 'NN', 'MD', 'LS', 'JJS', 'JJR',
                             'JJ', 'IN', 'FW', 'EX', 'DT', 'CD', 'CC', '$']
         postag_binary = np.zeros(len(possible_postags))
@@ -357,7 +391,7 @@ def extract_thread_features_incl_response(conversation):
                           'improper', 'inaccurate', 'incorrect',
                           'invalid', 'misleading', 'mistaken', 'phony',
                           'specious', 'spurious', 'unfounded', 'unreal',
-                          'untrue',  'untruthful', 'apocryphal',
+                          'untrue', 'untruthful', 'apocryphal',
                           'beguiling', 'casuistic', 'concocted',
                           'cooked-up', 'counterfactual',
                           'deceiving', 'delusive', 'ersatz',
@@ -398,8 +432,8 @@ def extract_thread_features_incl_response(conversation):
         if 'rumour' in tokens or 'gossip' in tokens or 'hoax' in tokens:
             feature_dict['src_rumour'] = 1
         if ('rumour' in otherthreadtokens) or (
-                                            'gossip' in otherthreadtokens) or (
-                                            'hoax' in otherthreadtokens):
+                'gossip' in otherthreadtokens) or (
+                'hoax' in otherthreadtokens):
             feature_dict['thread_rumour'] = 1
         whwords = ['what', 'when', 'where', 'which', 'who', 'whom', 'whose',
                    'why', 'how']
@@ -502,6 +536,6 @@ def extract_thread_features_incl_response(conversation):
             for verb in SpeechAct[k]:
                 if verb in tw['text'].lower():
                     feature_dict[k] += 1
-                    
-        fullthread_featdict[tw['id_str']] = feature_dict     
+
+        fullthread_featdict[tw['id_str']] = feature_dict
     return fullthread_featdict

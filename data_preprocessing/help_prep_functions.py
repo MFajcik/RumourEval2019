@@ -1,13 +1,15 @@
 """
-This file contains utility functions for preprocessing
+This file contains utility functions for data_preprocessing
 """
-import numpy as np
-import nltk
-from nltk.corpus import stopwords
 import re
-from copy import deepcopy
+
 import gensim
-#%%
+import nltk
+import numpy as np
+from nltk.corpus import stopwords
+
+
+# %%
 
 
 def str_to_wordlist(tweettext, tweet, remove_stopwords=False):
@@ -16,15 +18,17 @@ def str_to_wordlist(tweettext, tweet, remove_stopwords=False):
     if remove_stopwords:
         stops = set(stopwords.words("english"))
         words = [w for w in words if w not in stops]
-    return(words)
+    return (words)
+
 
 def loadW2vModel():
     # LOAD PRETRAINED MODEL
     global model_GN
-    print ("Loading the model")
+    print("Loading the model")
     model_GN = gensim.models.KeyedVectors.load_word2vec_format(
-                    '/Users/Helen/Documents/PhD/Pre-trained WORD2VEC/GoogleNews-vectors-negative300.bin', binary=True)
-    print ("Done!")
+        '/home/ifajcik/Work/NLP/Embeddings/google_pretrained_w2v/GoogleNews-vectors-negative300.bin', binary=True)
+    print("Done!")
+
 
 def sumw2v(tweet, avg=True):
     global model_GN
@@ -36,22 +40,24 @@ def sumw2v(tweet, avg=True):
         if wordlist[w] in model:
             temp_rep += model[wordlist[w]]
     if avg and len(wordlist) != 0:
-        sumw2v = temp_rep/len(wordlist)
+        sumw2v = temp_rep / len(wordlist)
     else:
         sumw2v = temp_rep
     return sumw2v
 
+
 def getW2vCosineSimilarity(words, wordssrc):
     global model_GN
     model = model_GN
-    words2 = []
+    words_in_vocab = []
     for word in words:
         if word in model.wv.vocab:  # change to model.wv.vocab
-            words2.append(word)
-    wordssrc2 = []
+            words_in_vocab.append(word)
+    wordssrc_in_vocab = []
     for word in wordssrc:
         if word in model.wv.vocab:  # change to model.wv.vocab
-            wordssrc2.append(word)
-    if len(words2) > 0 and len(wordssrc2) > 0:
-        return model.n_similarity(words2, wordssrc2)
+            wordssrc_in_vocab.append(word)
+    if len(words_in_vocab) > 0 and len(wordssrc_in_vocab) > 0:
+        # calculates BoW average cosine distance
+        return model.n_similarity(words_in_vocab, wordssrc_in_vocab)
     return 0.

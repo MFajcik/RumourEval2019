@@ -4,6 +4,7 @@ majority vote to generate per-tree prediction
 """
 import numpy as np
 
+
 def branch2treelabels(ids_test, y_test, y_pred, confidence):
     trees = np.unique(ids_test)
     tree_prediction = []

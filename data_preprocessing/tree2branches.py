@@ -30,7 +30,7 @@ def tree2branches(root):
             if siblings is not None:
                 i = siblings.index(node_name)  # index of a current node
                 # if node doesnt have next siblings
-                while i+1 >= len(siblings):
+                while i + 1 >= len(siblings):
                     if node is parent_tracker[0]:  # if it is a root node
                         return branches
                     del parent_tracker[-1]
@@ -39,8 +39,8 @@ def tree2branches(root):
                     node_name = branch[-1]
                     siblings = list(node.keys())
                     i = siblings.index(node_name)
-                i = i+1    # ... walk right
-    #            node =  parent_tracker[-1].values()[i]
+                i = i + 1  # ... walk right
+                #            node =  parent_tracker[-1].values()[i]
                 del branch[-1]
             else:
                 return branches
