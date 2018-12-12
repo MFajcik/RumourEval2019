@@ -46,6 +46,34 @@ def setup_logging(
         logging.basicConfig(level=default_level, filename=os.path.join(logpath, timestamp))
 
 
+def get_timestamp():
+    return datetime.datetime.now().strftime('%Y-%m-%d_%H:%M')
+
+
+def totext(batch, vocab, batch_first=True, remove_specials=True, check_for_zero_vectors=True):
+    textlist = []
+    if not batch_first:
+        batch = batch.transpose(0, 1)
+    for ex in batch:
+        if remove_specials:
+            textlist.append(
+                ' '.join(
+                    [vocab.itos[ix.item()] for ix in ex
+                     if ix != vocab.stoi["<pad>"] and ix != vocab.stoi["<eos>"]]))
+        else:
+            if check_for_zero_vectors:
+                text = []
+                for ix in ex:
+                    if vocab.vectors[ix.item()].equal(vocab.vectors[vocab.stoi["<unk>"]]):
+                        text.append("<OOV>")
+                    else:
+                        text.append(vocab.itos[ix.item()])
+                textlist.append(' '.join(text))
+            else:
+                textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex]))
+    return textlist
+
+
 def touch(f):
     """
     Create empty file at given location f
@@ -102,10 +130,18 @@ def totext(batch, vocab, batch_first=True, remove_specials=False):
     if not batch_first:
         batch = batch.transpose(0, 1)
     for ex in batch:
-        if remove_specials:
-            textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex if ix != vocab.stoi["<pad>"]]))
-        else:
-            textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex]))
+        try:
+            if remove_specials:
+                textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex if ix != vocab.stoi["<pad>"]]))
+            else:
+                textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex]))
+        except IndexError as e:
+            for ix in ex:
+                try:
+                    vocab.itos[ix.item()]
+                except IndexError as ex:
+                    logging.error(f"Vocabulary index out of range: {ix}")
+            raise (e)
     return textlist
 
 

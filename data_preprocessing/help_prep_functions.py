@@ -24,7 +24,7 @@ def str_to_wordlist(tweettext, tweet, remove_stopwords=False):
 def loadW2vModel():
     # LOAD PRETRAINED MODEL
     global model_GN
-    print("Loading the model")
+    print("Loading w2v model")
     model_GN = gensim.models.KeyedVectors.load_word2vec_format(
         '/home/ifajcik/Work/NLP/Embeddings/google_pretrained_w2v/GoogleNews-vectors-negative300.bin', binary=True)
     print("Done!")

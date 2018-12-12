@@ -17,7 +17,7 @@ from utils import DotDict
 def initopts(o):
     o.stopwords_file = ""
     o.remove_puncuation = False
-    o.remove_stop_words = False
+    o.remove_stop_words = True
     o.postag_words = False
     o.lemmatize_words = False
     o.num_replacement = "<num>"

@@ -1,6 +1,8 @@
+import re
 import string
 import warnings
 
+import preprocessor as twitter_preprocessor
 import spacy
 # See spacy tag_map.py for tag explanation
 from nltk.corpus import stopwords
@@ -17,7 +19,8 @@ POS_dict['UNK'] = 0
 POS_dict['EOS'] = 1
 
 
-def preprocess_text(text: str, opts, nlpengine=None, lang='en', special_tags=["<pad>", "<eos>"]):
+def preprocess_text(text: str, opts, nlpengine=None, lang='en', special_tags=["<pad>", "<eos>"],
+                    use_tw_preprocessor=True):
     if nlpengine is None:
         global nlp
         if nlp is None:
@@ -100,6 +103,13 @@ def preprocess_text(text: str, opts, nlpengine=None, lang='en', special_tags=["<
                 POSvec.append(POS_dict['EOS'])
         else:
             processed_chunk += "\n"
+
+    if use_tw_preprocessor:
+        ## ! There is a bug in original package for twitter preprocessing
+        # Sometomes regexp for link preprocessing freezes
+        # So we preprocess links separately
+        text = re.sub(r"http\S+", "$LINK$", processed_chunk.strip())
+        processed_chunk = twitter_preprocessor.tokenize(text)
 
     if opts.returnbiglettervector and opts.returnposvector:
         return processed_chunk.strip(), BLvec, POSvec

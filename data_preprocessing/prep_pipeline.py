@@ -13,6 +13,8 @@ feats ('text' or 'SemEval')
 import json
 import os
 
+from tqdm import tqdm
+
 from data_preprocessing.extract_thread_features import extract_thread_features_incl_response
 from data_preprocessing.help_prep_functions import loadW2vModel
 from data_preprocessing.preprocessing_reddit import load_data
@@ -69,7 +71,7 @@ def prep_pipeline(dataset='RumEval2019', feature_set=['avgw2v'], use_reddit_data
         conv_ids = []
 
         all_fold_features = []
-        for conversation in folds[fold]:
+        for conversation in tqdm(folds[fold]):
             # extract features for source and replies
             thread_feature_dict = extract_thread_features_incl_response(conversation)
             all_fold_features.append(thread_feature_dict)

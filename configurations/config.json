@@ -47,7 +47,7 @@
         "learning_rate": 0.00001,
         "dropout_rate": 0.5,
         "batch_size": 16,
-        "epochs": 70,
+        "epochs": 90,
         "sep_token": "<sep>",
         "RNN_nhidden": 300,
         "RNN_layers": 1,
@@ -57,7 +57,7 @@
         "ATTENTION_hops": 10,
         "FC_layers": 0,
         "FC_size": 300,
-        "optimize_embeddings": false
+        "optimize_embeddings": true
       },
       "Xtrain_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/train/train.json",
       "Xdev_data": "data_preprocessing/saved_data_RumEval2019_NOREDDIT/dev/dev.json",
@@ -69,11 +69,11 @@
     },
     "selfatt_text_and_baseline": {
       "hyperparameters": {
-        "learning_rate": 0.00007,
+        "learning_rate": 0.00001,
         "inp_size": 314,
         "dropout_rate": 0.5,
         "batch_size": 16,
-        "epochs": 100,
+        "epochs": 500,
         "sep_token": "<sep>",
         "RNN_nhidden": 300,
         "RNN_layers": 1,

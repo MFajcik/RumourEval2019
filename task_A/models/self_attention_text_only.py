@@ -2,6 +2,7 @@ import torch
 
 from embedders import Embedder
 from encoders import SelfAttentiveEncoder
+import torch.nn.functional as F
 
 
 class SelAttTextOnly(torch.nn.Module):
@@ -21,7 +22,7 @@ class SelAttTextOnly(torch.nn.Module):
         #     h = F.dropout(F.relu(fc(h)), self.dropout_rate)
 
         r = h.view(h.shape[0], -1).view(inp.shape[0], inp.shape[1], -1)
-        return self.final_layer(r)
+        return self.final_layer(r), attention
 
     def prepare_inp(self, batch):
         maxlen = 0

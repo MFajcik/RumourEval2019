@@ -9,9 +9,11 @@ from tqdm import tqdm
 
 from RumourEvalDataset import RumourEval2019Dataset
 from modelutils import glorot_param_init
-from utils import count_parameters
+from utils import count_parameters, get_timestamp
 
 __author__ = "Martin Fajčík"
+
+step = 0
 
 
 # FIXME: learn special embedding tokens
@@ -20,29 +22,40 @@ __author__ = "Martin Fajčík"
 # textonly  (Best 3.6824|0.690799)
 # textonly
 # textonly + embopt (Best 3.9955|0.676177)
-class BaseFramework:
+
+# textonly 0.714337 after text preprocessing
+class Base_Framework:
     def __init__(self, config: dict):
         self.config = config
+        self.save_treshold = 0.855
 
-    def build_dataset(self, path):
-        fields = RumourEval2019Dataset.prepare_fields(self.config["hyperparameters"]["sep_token"])
+    def build_dataset(self, path, fields):
         return RumourEval2019Dataset(path, fields), {k: v for k, v in fields}
 
     def train(self, modelfunc):
         config = self.config
-        train_data, train_fields = self.build_dataset(config["train_data"])
-        dev_data, dev_fields = self.build_dataset(config["dev_data"])
+
+        fields = RumourEval2019Dataset.prepare_fields(self.config["hyperparameters"]["sep_token"])
+        train_data, train_fields = self.build_dataset(config["train_data"], fields)
+        dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
+
+        torch.manual_seed(42)
 
         # No need to build vocab for baseline
         # but fo future work I wrote RumourEval2019Dataset that
         # requires vocab to be build
-        build_vocab = lambda field, data: RumourEval2019Dataset.build_vocab(field,
-                                                                            self.config["hyperparameters"]["sep_token"],
-                                                                            data,
-                                                                            vectors=config["embeddings"],
-                                                                            vectors_cache=config["vector_cache"])
-        build_vocab(train_fields['spacy_processed_text'], train_data)
-        build_vocab(dev_fields['spacy_processed_text'], dev_data)
+        build_vocab = lambda field, *data: RumourEval2019Dataset.build_vocab(field,
+                                                                             self.config["hyperparameters"][
+                                                                                 "sep_token"],
+                                                                             *data,
+                                                                             vectors=config["embeddings"],
+                                                                             vectors_cache=config["vector_cache"])
+        # FIXME: add dev vocab to model's vocab
+        # 14833 together
+        # 11809 words in train
+        # 6450 words in dev
+        build_vocab(train_fields['spacy_processed_text'], train_data, dev_data)
+        self.vocab = train_fields['spacy_processed_text'].vocab
 
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
@@ -77,6 +90,9 @@ class BaseFramework:
                     best_val_acc = validation_acc
                 logging.info(
                     f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
+                if validation_acc > self.save_treshold:
+                    torch.save(model,
+                               f"saved/checkpoint_{str(self.__class__)}_ACC_{validation_acc:.5f}_{get_timestamp()}.pt")
         except KeyboardInterrupt:
             logging.info('-' * 120)
             logging.info('Exit from training early.')
@@ -125,7 +141,7 @@ class BaseFramework:
         dev_loss = 0
         total_correct = 0
         for i, batch in enumerate(dev_iter):
-            pred_logits = model(batch)
+            predictions, maxpreds, argmaxpreds, attention = model.predict(batch)
 
             pred_logits = pred_logits.view((-1, 4))
             labels = batch.stance_labels.view(-1)
