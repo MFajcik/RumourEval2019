@@ -9,7 +9,7 @@ from torchtext.data import Example
 from torchtext.data.dataset import Dataset
 
 
-class RumourEval2019Dataset(tt.data.Dataset):
+class RumourEval2019Dataset_Branches(tt.data.Dataset):
     def __init__(self, path: str, fields: List[Tuple[str, tt.data.Field]], **kwargs):
         with open(path) as dataf:
             data_json = json.load(dataf)
@@ -21,7 +21,7 @@ class RumourEval2019Dataset(tt.data.Dataset):
                     Example.fromlist(starting_fields +
                                      [self.from_list(e, "features", id) for id, _ in fields[len(starting_fields):]],
                                      fields))
-            super(RumourEval2019Dataset, self).__init__(examples, fields, **kwargs)
+            super(RumourEval2019Dataset_Branches, self).__init__(examples, fields, **kwargs)
 
     def from_list(self, d: dict, str1: str, str2: str):
         return [d[str1][i][str2] for i in range(len(d[str1]))]
@@ -35,7 +35,6 @@ class RumourEval2019Dataset(tt.data.Dataset):
 
     @staticmethod
     def prepare_fields(sep_token):
-        # int_field = lambda: tt.data.Field(use_vocab=False, batch_first=True, pad_token=-1)
         float_field = lambda: tt.data.Field(use_vocab=False, dtype=torch.float, batch_first=True, pad_token=-1.)
         return [
             ('id', tt.data.RawField()),
@@ -62,7 +61,7 @@ class RumourEval2019Dataset(tt.data.Dataset):
             ('raw_text', tt.data.RawField()),
             ('spacy_processed_text',
              tt.data.Field(batch_first=True,
-                           preprocessing=RumourEval2019Dataset.get_preprocess(sep_token)))
+                           preprocessing=RumourEval2019Dataset_Branches.get_preprocess(sep_token)))
         ]
 
     @staticmethod

@@ -1,0 +1,29 @@
+2018-12-16 20:59:13,698 INFO pytorch_pretrained_bert.tokenization: loading vocabulary file https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt from cache at ./.BERTcache/26bc1ad6c0ac742e9b52263248f6d0f00068293b33709fae12320c0e35ccfbbb.542ce4285a40d23a559526243235df47c5f75c197f04f37d1a0c124c32c9a084
+2018-12-16 20:59:18,675 INFO root: Train examples: 5162
+Validation examples: 1453
+2018-12-16 20:59:19,131 INFO pytorch_pretrained_bert.modeling: loading archive file https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased.tar.gz from cache at ./.BERTcache/9c41111e2de84547a463fd39217199738d1e3deb72d4fec4399e6e241983c6f0.ae3cef932725ca7a30cdcb93fc6e09150a55e2a130ec7af63975a16c153ae2ba
+2018-12-16 20:59:19,133 INFO pytorch_pretrained_bert.modeling: extracting archive file ./.BERTcache/9c41111e2de84547a463fd39217199738d1e3deb72d4fec4399e6e241983c6f0.ae3cef932725ca7a30cdcb93fc6e09150a55e2a130ec7af63975a16c153ae2ba to temp dir /tmp/tmpt5jl56mg
+2018-12-16 20:59:22,143 INFO pytorch_pretrained_bert.modeling: Model config {
+  "attention_probs_dropout_prob": 0.1,
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "max_position_embeddings": 512,
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "type_vocab_size": 2,
+  "vocab_size": 30522
+}
+
+2018-12-16 20:59:24,442 INFO pytorch_pretrained_bert.modeling: Weights of BertModelForStanceClassification not initialized from pretrained model: ['last_layer.weight', 'last_layer.bias']
+2018-12-16 20:59:24,442 INFO pytorch_pretrained_bert.modeling: Weights from pretrained model not used in BertModelForStanceClassification: ['cls.predictions.bias', 'cls.predictions.transform.dense.weight', 'cls.predictions.transform.dense.bias', 'cls.predictions.decoder.weight', 'cls.seq_relationship.weight', 'cls.seq_relationship.bias', 'cls.predictions.transform.LayerNorm.weight', 'cls.predictions.transform.LayerNorm.bias']
+2018-12-16 20:59:26,124 INFO root: Model has 109485316 trainable parameters.
+2018-12-16 20:59:26,124 INFO root: Manual seed 1570055016034928672
+2018-12-16 21:00:26,631 INFO root: Epoch 0, Validation loss|acc: 1.312976|0.380592 - (Best 1.3130|0.380592)
+2018-12-16 21:01:27,529 INFO root: Epoch 1, Validation loss|acc: 1.124937|0.565038 - (Best 1.1249|0.565038)
+2018-12-16 21:02:28,623 INFO root: Epoch 2, Validation loss|acc: 0.861105|0.713008 - (Best 0.8611|0.713008)
+2018-12-16 21:03:30,423 INFO root: Epoch 3, Validation loss|acc: 0.861326|0.750860 - (Best 0.8611|0.750860)
+2018-12-16 21:04:32,036 INFO root: Epoch 4, Validation loss|acc: 0.893455|0.799036 - (Best 0.8611|0.799036)
+2018-12-16 21:05:33,583 INFO root: Epoch 5, Validation loss|acc: 0.995768|0.781831 - (Best 0.8611|0.799036)

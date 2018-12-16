@@ -17,7 +17,7 @@ from utils import DotDict
 def initopts(o):
     o.stopwords_file = ""
     o.remove_puncuation = False
-    o.remove_stop_words = True
+    o.remove_stop_words = False
     o.postag_words = False
     o.lemmatize_words = False
     o.num_replacement = "<num>"
@@ -26,9 +26,9 @@ def initopts(o):
     o.to_lowercase = True
     o.replace_nums = False  # Nums are important, since rumour may be lying about count
     o.count_words = False
-    o.remove_backslash_text = True
+    o.remove_backslash_text = False
     o.eos = "<eos>"
-    o.add_eos = True
+    o.add_eos = False
 
     o.returnbiglettervector = True
     o.returnposvector = True

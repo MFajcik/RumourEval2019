@@ -1,8 +1,8 @@
 import csv
 
 import torch
-import xlsxwriter
 import torch.nn.functional as F
+import xlsxwriter
 from colour import Color
 from torch.nn.modules.loss import _Loss
 from torchtext.data import Iterator
@@ -10,6 +10,15 @@ from tqdm import tqdm
 
 from task_A.frameworks.base_framework import Base_Framework
 from utils import totext
+
+
+def frobenius_norm(mat):
+    size = mat.size()
+    if len(size) == 3:  # batched matrix
+        ret = (torch.sum(torch.sum((mat ** 2), 1), 1).squeeze() + 1e-10) ** 0.5
+        return torch.sum(ret) / size[0]
+    else:
+        raise Exception('matrix for computing Frobenius norm should be with 3 dims')
 
 
 class Text_Framework(Base_Framework):
@@ -26,6 +35,10 @@ class Text_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
         self.save_treshold = 0.71
+        self.I = torch.eye(config['hyperparameters']['ATTENTION_hops'], requires_grad=False,
+                           device=torch.device("cuda:0" if config['cuda'] and
+                                                           torch.cuda.is_available() else "cpu")) \
+            .unsqueeze(0)
 
     def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
@@ -43,6 +56,16 @@ class Text_Framework(Base_Framework):
             mask = labels > -1
             masked_preds, masked_labels = pred_logits[mask, :], labels[mask]
             loss = lossfunction(masked_preds, masked_labels)
+
+            if config["hyperparameters"]["cov_penalization"] > 1e-10:
+                attentionT = torch.transpose(attention, 1, 2).contiguous()
+                # We index I because of the last batch, where we need less identity matrices, than batch_size
+                extra_loss = frobenius_norm(torch.bmm(attention, attentionT) - self.I.expand(attention.size(0),
+                                                                                             config['hyperparameters'][
+                                                                                                 'ATTENTION_hops'],
+                                                                                             config['hyperparameters'][
+                                                                                                 'ATTENTION_hops']))
+                loss += config["hyperparameters"]["cov_penalization"] * extra_loss
 
             loss.backward()
             if model.encoder is not None:

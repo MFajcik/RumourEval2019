@@ -11,9 +11,9 @@ except ImportError:
 
 class TBLogger(object):
 
-    def __init__(self, log_dir):
+    def __init__(self, log_dir, **kwargs):
         """Create a summary writer logging to log_dir."""
-        self.writer = tf.summary.FileWriter(log_dir)
+        self.writer = tf.summary.FileWriter(log_dir, **kwargs)
 
     def scalar_summary(self, tag, value, step):
         """Log a scalar variable."""

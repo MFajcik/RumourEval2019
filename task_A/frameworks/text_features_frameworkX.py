@@ -1,6 +1,5 @@
 import logging
 import math
-import sys
 import time
 from itertools import chain
 
@@ -10,15 +9,15 @@ from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
 from RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
-from encoders import LayerNorm
 from modelutils import glorot_param_init, disable_gradients
 from task_A.frameworks.base_framework import Base_Framework
 from tflogger import TBLogger
 from utils import count_parameters, get_timestamp
 
-# tblogging = TBLogger('./logs',filename_suffix="attandbsl")
 
-step = 0
+# tblogging = TBLogger('./logs')
+
+
 class Text_Feature_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
@@ -62,27 +61,30 @@ class Text_Feature_Framework(Base_Framework):
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
-        # model = modelfunc(self.config, vocab=train_fields['spacy_processed_text'].vocab).to(device)
+        model = modelfunc(self.config, vocab=train_fields['spacy_processed_text'].vocab,
+                          textmodel=torch.load(
+                              "saved/checkpoint_<class 'task_A.frameworks.text_framework.Text_Framework'>_ACC_0.71184_2018-12-11_21:04.pt")) \
+            .to(device)
 
-        # glorot_param_init(model)
-        model = torch.load(f"saved/submodel_2_pretrained_2018-12-13_13:35.pt")
-        model.train()
-
+        glorot_param_init(model)
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
         # optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
         #                             lr=config["hyperparameters"]["learning_rate"])
-        #
-        # optimizer_for_hcrafted = torch.optim.Adam(filter(lambda p: p.requires_grad,
-        #                                                  chain(
-        #                                                      model.baseline_feature_extractor.parameters(),
-        #                                                      model.final_layer.parameters())),
-        #                                           lr=0.00008,
-        #                                           betas=[0.9, 0.999], eps=1e-8)
+
+        optimizer_for_hcrafted = torch.optim.Adam(filter(lambda p: p.requires_grad,
+                                                         chain(
+                                                             model.baseline_feature_extractor.parameters(),
+                                                             model.final_layer.parameters())),
+                                                  lr=0.00008,
+                                                  betas=[0.9, 0.999], eps=1e-8)
         # optimizer_for_e2e = torch.optim.Adam(
         #     filter(lambda p: p.requires_grad,
         #            chain(model.textselfatt_feature_extractor.parameters(), model.final_layer.parameters())),
         #     lr=0.00001)
+        # final_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.final_layer.parameters()),
+        #                                    lr=0.0001,
+        #                                    betas=[0.9, 0.999], eps=1e-8)
 
         lossfunction = torch.nn.CrossEntropyLoss()
         start_time = time.time()
@@ -90,76 +92,46 @@ class Text_Feature_Framework(Base_Framework):
             best_val_loss = math.inf
             best_val_acc = 0
             disabled = False
-
-            logging.info("Disabling gradients")
-            disable_gradients(model.baseline_feature_extractor)
-            disable_gradients(model.textselfatt_feature_extractor)
-            # model.linearA = torch.nn.Linear(model.baseline_feature_extractor.fclayers[-1].weight.shape[
-            #                                    0],320).to(device)
-            # model.linearB = torch.nn.Linear(model.textselfatt_feature_extractor.encoder.get_output_dim(),320).to(device)
-            # model.attmatrixA = torch.nn.Linear(model.baseline_feature_extractor.fclayers[-1].weight.shape[
-            #                                     0] + model.textselfatt_feature_extractor.encoder.get_output_dim(),320).to(device)
-            # model.attvectorB = torch.nn.Linear(320,1).to(device)
-            # model.final_layer.weight.data[:,:-314]=1e-5
-
-            disabled = True
-            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.final_layer.parameters()),
-                                         lr=0.0001)
-            # glorot_param_init(model)
-
-            logging.info("#" * 40 + "BEFORE" + "#" * 40)
-            validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config,
-                                                            "all")
-            logging.info(
-                f"ALL: Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
-            validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config,
-                                                            "text")
-            logging.info(
-                f"TEXT: Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
-            validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config,
-                                                            "hand")
-            logging.info(
-                f"HAND: Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
-            logging.info("#" * 40 + "END OF BEFORE" + "#" * 40)
             p1 = p2 = p3 = False
             for epoch in range(config["hyperparameters"]["epochs"]):
-                # if epoch < 50:
+                # if epoch < 80:
                 #     if not p1:
                 #         logging.info("#" * 96)
                 #         logging.info("Training phase 1")
                 #         p1 = True
                 #     selected_features = "text"
                 #     optimizer = optimizer_for_e2e
-                # elif epoch < 90:
+                # elif epoch < 80:
+                #     torch.save(model, f"saved/submodel_1_2_pretrained_{get_timestamp()}.pt")
+                #     exit()
                 #     if not p2:
                 #         logging.info("#" * 96)
                 #         logging.info("Training phase 2")
-                #         torch.save(model, f"saved/submodel_1_pretrained_{get_timestamp()}.pt")
                 #         p2 = True
                 #     selected_features = "hand"
-                #     optimizer = optimizer_for_hcrafted
+                #     #optimizer = optimizer_for_hcrafted
                 # else:
                 #     if not p3:
                 #         logging.info("#" * 96)
                 #         logging.info("Training phase 3")
-                #         torch.save(model, f"saved/submodel_2_pretrained_{get_timestamp()}.pt")
                 #         p3 = True
-                if not disabled:
-                    logging.info("Disabling gradients")
-                    disable_gradients(model.baseline_feature_extractor)
-                    disable_gradients(model.textselfatt_feature_extractor)
-                    disabled = True
+                #     #optimizer = final_optimizer
+                #     if not disabled:
+                #         logging.info("Disabling gradients")
+                #         disable_gradients(model.baseline_feature_extractor)
+                #         disable_gradients(model.textselfatt_feature_extractor)
+                #         disabled = True
+                #    selected_features = "all"
 
-                #selected_features = "all"
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config,
-                               "all")
-                # train_loss, train_acc = self.validate(model, lossfunction, train_iter, config,
-                #                                       selected_features)
+                self.run_epoch(model, lossfunction, optimizer_for_hcrafted, train_iter, config, None)
 
-                # logging.info(
-                #     f"Epoch {epoch}, Training loss|acc: {train_loss:.6f}|{train_acc:.6f}")                logging.info("#"*40+"BEFORE"+"#"*40)
+                train_loss, train_acc = self.validate(model, lossfunction, train_iter, config,
+                                                      None)
+
+                logging.info(
+                    f"Epoch {epoch}, Training loss|acc: {train_loss:.6f}|{train_acc:.6f}")
                 validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config,
-                                                                "all")
+                                                                selected_features)
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
                 if validation_acc > best_val_acc:
@@ -231,7 +203,8 @@ class Text_Feature_Framework(Base_Framework):
             train_loss += loss.item()
             if verbose:
                 pbar.update(1)
-            self.tblog_model_parameters(model, step)
+            if step % 500 == 0:
+                self.tblog_model_parameters(model, step)
             step += 1
         return train_loss / total_batches, total_correct / examples_so_far
 

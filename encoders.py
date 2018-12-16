@@ -299,7 +299,8 @@ class MultiHeadedAttention(torch.nn.Module):
         # where S is:  1 for src sequence data
         #            LEN for tgt sequence data
 
-        # NOTICE: Dropout on attention
+        # NOTICE: Dropout on attention,
+        # this comes from original transformer implementation
         if dropout is not None:
             p_attn = dropout(p_attn)
 

@@ -92,21 +92,30 @@ def prep_pipeline(dataset='RumEval2019', feature_set=['avgw2v'], use_reddit_data
 
         # %
         if fold_features != []:
-
+            print("Writing dataset")
             path_fold = os.path.join(path, fold)
             if not os.path.exists(path_fold):
                 os.makedirs(path_fold)
+            alltexts = []
             jsonformat = {"Examples": []}
-            for i, e in enumerate(range(len(fold_features_dict))):
-                for j in range(len(fold_features_dict[i])):
-                    fold_features_dict[i][j]["avgw2v"] = fold_features_dict[i][j]["avgw2v"].tolist()
-                example = {
-                    "id": i,
-                    "stance_labels": fold_stance_labels[i].tolist(),
-                    "veracity_label": fold_veracity_labels[i],
-                    "features": fold_features_dict[i]
-                }
-                jsonformat["Examples"].append(example)
+            cnt = 0
+            for i in tqdm(range(len(fold_features_dict))):
+                e = fold_features_dict[i]
+                for idx in range(len(e)):
+                    if not e[idx]["raw_text"] in alltexts:
+                        example = {
+                            "id": cnt,
+                            "branch_id": f"{i}.{idx}",
+                            "stance_label": fold_stance_labels[i].tolist()[idx],
+                            "raw_text": e[idx]["raw_text"],
+                            "issource": e[idx]["issource"],
+                            "spacy_processed_text": e[idx]["spacy_processed_text"],
+                            "spacy_processed_text_prev": e[idx - 1]["spacy_processed_text"] if idx - 1 > -1 else "",
+                            "spacy_processed_text_src": e[0]["spacy_processed_text"] if idx - 1 > -1 else ""
+                        }
+                        cnt += 1
+                        jsonformat["Examples"].append(example)
+                        alltexts.append(e[idx]["raw_text"])
             json.dump(jsonformat, open(os.path.join(path_fold, f"{fold}.json"), "w"))
 
             # fold_features = pad_sequences(fold_features, maxlen=None,
@@ -143,15 +152,17 @@ def main(data='RumEval2019', feats='BUTFeatures'):
                            'Word2VecSimilarityWrtPrev']
         prep_pipeline(dataset='RumEval2019', feature_set=SemEvalfeatures)
     elif feats == "BUTFeatures":
-        features = ['avgw2v', 'hasnegation', 'hasswearwords',
-                    'capitalratio', 'hasperiod', 'hasqmark',
-                    'hasemark', 'hasurl', 'haspic',
-                    'charcount', 'wordcount', 'issource',
-                    'Word2VecSimilarityWrtOther',
-                    'Word2VecSimilarityWrtSource',
-                    'Word2VecSimilarityWrtPrev',
-                    'raw_text',
-                    'spacy_processed_text']
+        features = [  # 'avgw2v',
+            # 'hasnegation', 'hasswearwords',
+            # 'capitalratio', 'hasperiod', 'hasqmark',
+            # 'hasemark', 'hasurl', 'haspic',
+            # 'charcount', 'wordcount', 'issource',
+            # 'Word2VecSimilarityWrtOther',
+            # 'Word2VecSimilarityWrtSource',
+            # 'Word2VecSimilarityWrtPrev',
+            'issource',
+            'raw_text',
+            'spacy_processed_text']
         prep_pipeline(dataset='RumEval2019', feature_set=features)
 
 

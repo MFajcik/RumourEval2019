@@ -50,6 +50,9 @@ class SelfAttandBsline(torch.nn.Module):
             text_features = self.textselfatt_feature_extractor(batch)
             baseline_features = self.baseline_feature_extractor(batch)
             features = torch.cat((text_features, baseline_features), dim=-1)
+            # alpha = F.sigmoid(self.attvectorB(F.tanh(self.attmatrixA(features))))
+            #
+            # features = torch.cat((alpha * text_features, (1 - alpha) * baseline_features), dim=-1)
             final_layer = self.final_layer
         return final_layer(features)
 

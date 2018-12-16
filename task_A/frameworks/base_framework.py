@@ -7,7 +7,7 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from RumourEvalDataset import RumourEval2019Dataset
+from RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
 from modelutils import glorot_param_init
 from utils import count_parameters, get_timestamp
 
@@ -30,12 +30,12 @@ class Base_Framework:
         self.save_treshold = 0.855
 
     def build_dataset(self, path, fields):
-        return RumourEval2019Dataset(path, fields), {k: v for k, v in fields}
+        return RumourEval2019Dataset_Branches(path, fields), {k: v for k, v in fields}
 
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset.prepare_fields(self.config["hyperparameters"]["sep_token"])
+        fields = RumourEval2019Dataset_Branches.prepare_fields(self.config["hyperparameters"]["sep_token"])
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
 
@@ -44,12 +44,13 @@ class Base_Framework:
         # No need to build vocab for baseline
         # but fo future work I wrote RumourEval2019Dataset that
         # requires vocab to be build
-        build_vocab = lambda field, *data: RumourEval2019Dataset.build_vocab(field,
-                                                                             self.config["hyperparameters"][
+        build_vocab = lambda field, *data: RumourEval2019Dataset_Branches.build_vocab(field,
+                                                                                      self.config["hyperparameters"][
                                                                                  "sep_token"],
-                                                                             *data,
-                                                                             vectors=config["embeddings"],
-                                                                             vectors_cache=config["vector_cache"])
+                                                                                      *data,
+                                                                                      vectors=config["embeddings"],
+                                                                                      vectors_cache=config[
+                                                                                          "vector_cache"])
         # FIXME: add dev vocab to model's vocab
         # 14833 together
         # 11809 words in train

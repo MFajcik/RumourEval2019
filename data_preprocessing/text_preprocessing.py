@@ -72,11 +72,6 @@ def preprocess_text(text: str, opts, nlpengine=None, lang='en', special_tags=["<
             if opts.remove_backslash_text:
                 output = output.split("\\", maxsplit=2)[0]
 
-            # Spacy does not tokenize /,& for some reason
-            fix_puncuation = ['/', '&']
-            for p in fix_puncuation:
-                output = f' {p} '.join(output.split(p)).strip()
-
             if opts.replace_special_tags and output in special_tags:
                 output = opts.special_tag_replacement
 
@@ -108,8 +103,10 @@ def preprocess_text(text: str, opts, nlpengine=None, lang='en', special_tags=["<
         ## ! There is a bug in original package for twitter preprocessing
         # Sometomes regexp for link preprocessing freezes
         # So we preprocess links separately
-        text = re.sub(r"http\S+", "$LINK$", processed_chunk.strip())
-        processed_chunk = twitter_preprocessor.tokenize(text)
+        text = re.sub(r"(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?", "",
+                      processed_chunk.strip())
+        twitter_preprocessor.set_options('urls', 'mentions', 'hashtags', 'reserved_words')
+        processed_chunk = twitter_preprocessor.clean(text)
 
     if opts.returnbiglettervector and opts.returnposvector:
         return processed_chunk.strip(), BLvec, POSvec

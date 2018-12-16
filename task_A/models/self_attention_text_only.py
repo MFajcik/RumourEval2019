@@ -2,7 +2,6 @@ import torch
 
 from embedders import Embedder
 from encoders import SelfAttentiveEncoder
-import torch.nn.functional as F
 
 
 class SelAttTextOnly(torch.nn.Module):
@@ -11,6 +10,7 @@ class SelAttTextOnly(torch.nn.Module):
         self.embedder = Embedder(vocab, config["hyperparameters"])
         self.encoder = SelfAttentiveEncoder(config["hyperparameters"])
         self.dropout_rate = config["hyperparameters"]["dropout_rate"]
+        # self.hidden = torch.nn.Linear(self.encoder.get_output_dim(), 314)
         self.final_layer = torch.nn.Linear(self.encoder.get_output_dim(), classes)
 
     def forward(self, batch):
@@ -22,6 +22,7 @@ class SelAttTextOnly(torch.nn.Module):
         #     h = F.dropout(F.relu(fc(h)), self.dropout_rate)
 
         r = h.view(h.shape[0], -1).view(inp.shape[0], inp.shape[1], -1)
+        # r = F.dropout(F.relu(self.hidden(r)), self.dropout_rate)
         return self.final_layer(r), attention
 
     def prepare_inp(self, batch):
