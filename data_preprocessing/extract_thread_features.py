@@ -9,30 +9,8 @@ import nltk
 import numpy as np
 
 from data_preprocessing.help_prep_functions import sumw2v, getW2vCosineSimilarity
-from data_preprocessing.text_preprocessing import preprocess_text
+from data_preprocessing.text_preprocessing import preprocess_text, initopts
 from data_preprocessing.tree2branches import tree2branches
-from utils import DotDict
-
-
-def initopts(o):
-    o.stopwords_file = ""
-    o.remove_puncuation = False
-    o.remove_stop_words = False
-    o.postag_words = False
-    o.lemmatize_words = False
-    o.num_replacement = "<num>"
-    o.replace_special_tags = True
-    o.special_tag_replacement = "#"
-    o.to_lowercase = True
-    o.replace_nums = False  # Nums are important, since rumour may be lying about count
-    o.count_words = False
-    o.remove_backslash_text = False
-    o.eos = "<eos>"
-    o.add_eos = False
-
-    o.returnbiglettervector = True
-    o.returnposvector = True
-    return o
 
 
 def extract_thread_features(conversation):
@@ -55,7 +33,9 @@ def extract_thread_features(conversation):
     feature_dict['raw_text'] = raw_txt
     feature_dict['spacy_processed_text'], \
     feature_dict['spacy_processed_BLvec'], \
-    feature_dict['spacy_processed_POSvec'] = preprocess_text(raw_txt, initopts(DotDict()))
+    feature_dict['spacy_processed_POSvec'], \
+    feature_dict['spacy_processed_DEPvec'], \
+    feature_dict['spacy_processed_NERvec'] = preprocess_text(raw_txt, initopts())
     feature_dict['hasqmark'] = 0
     if tw['text'].find('?') >= 0:
         feature_dict['hasqmark'] = 1
@@ -369,7 +349,9 @@ def extract_thread_features_incl_response(conversation):
         feature_dict['raw_text'] = raw_txt
         feature_dict['spacy_processed_text'], \
         feature_dict['spacy_processed_BLvec'], \
-        feature_dict['spacy_processed_POSvec'] = preprocess_text(raw_txt, initopts(DotDict()))
+        feature_dict['spacy_processed_POSvec'], \
+        feature_dict['spacy_processed_DEPvec'], \
+        feature_dict['spacy_processed_NERvec'] = preprocess_text(raw_txt, initopts())
 
         feature_dict['src_usr_hasurl'] = 0
 

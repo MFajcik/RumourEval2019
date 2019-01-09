@@ -40,3 +40,16 @@ class SelAttTextOnly(torch.nn.Module):
                 for k, token in enumerate(text.split()):
                     inp[i, j, k] = self.embedder.vocab.stoi[token]
         return inp.type(torch.long).to(batch.stance_labels.device)
+
+
+class SelAttTextOnlyWithoutPrepInput(SelAttTextOnly):
+    def forward(self, batch):
+        inp = batch.spacy_processed_text
+        emb = self.embedder(inp)
+        h, attention = self.encoder(inp, emb, self.embedder.vocab)
+        # for fc in self.fclayers:
+        #     h = F.dropout(F.relu(fc(h)), self.dropout_rate)
+
+        r = h.view(h.shape[0], -1)
+        # r = F.dropout(F.relu(self.hidden(r)), self.dropout_rate)
+        return self.final_layer(r), attention

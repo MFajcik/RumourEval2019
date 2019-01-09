@@ -1,11 +1,12 @@
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.bert_framework import BERT_Framework
 from task_A.frameworks.text_features_framework import Text_Feature_Framework
-from task_A.frameworks.text_framework import Text_Framework
+from task_A.frameworks.text_framework_branch import Text_Framework
+from task_A.frameworks.text_framework_seq import Text_Framework_Seq
 from task_A.models.baseline import Baseline
 from task_A.models.baseline_lstm import Baseline_LSTM
 from task_A.models.sel_att_and_baseline import SelfAttandBsline
-from task_A.models.self_attention_text_only import SelAttTextOnly
+from task_A.models.self_attention_text_only import SelAttTextOnly, SelAttTextOnlyWithoutPrepInput
 from task_A.models.text_BERT import BertModelForStanceClassification
 
 __author__ = "Martin Fajčík"
@@ -29,6 +30,9 @@ class SolutionA:
         elif self.config["active_model"] == "selfatt_textonly":
             modelf = SelAttTextOnly
             fworkf = Text_Framework
+        elif self.config["active_model"] == "selfatt_textonly_seq":
+            modelf = SelAttTextOnlyWithoutPrepInput
+            fworkf = Text_Framework_Seq
         elif self.config["active_model"] == "selfatt_text_and_baseline":
             modelf = SelfAttandBsline
             fworkf = Text_Feature_Framework

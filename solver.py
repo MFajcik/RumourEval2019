@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 
-from solutionA import SolutionA
+from solutionsA import SolutionA
 from utils import setup_logging
 
 __author__ = "Martin Fajčík"

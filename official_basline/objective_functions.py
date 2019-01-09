@@ -15,20 +15,20 @@ from official_basline.branch2treelabels import branch2treelabels
 
 
 def objective_function_stance_branchLSTM_RumEv(params):
-    x_train = np.load(os.path.join('data_preprocessing/saved_dataRumEval2019',
+    x_train = np.load(os.path.join('data_preprocessing/saved_data_RumEval2019_baseline',
                                    'train/train_array.npy'))
-    y_train = np.load(os.path.join('data_preprocessing/saved_dataRumEval2019',
+    y_train = np.load(os.path.join('data_preprocessing/saved_data_RumEval2019_baseline',
                                    'train/fold_stance_labels.npy'))
     y_train_cat = []
     for i in range(len(y_train)):
         y_train_cat.append(to_categorical(y_train[i], num_classes=4))
     y_train_cat = np.asarray(y_train_cat)
-    x_test = np.load(os.path.join('data_preprocessing/saved_dataRumEval2019',
+    x_test = np.load(os.path.join('data_preprocessing/saved_data_RumEval2019_baseline',
                                   'dev/train_array.npy'))
-    y_test = np.load(os.path.join('data_preprocessing/saved_dataRumEval2019',
+    y_test = np.load(os.path.join('data_preprocessing/saved_data_RumEval2019_baseline',
                                   'dev/fold_stance_labels.npy'))
 
-    ids_test = np.load(os.path.join('data_preprocessing/saved_dataRumEval2019',
+    ids_test = np.load(os.path.join('data_preprocessing/saved_data_RumEval2019_baseline',
                                     'dev/tweet_ids.npy'))
 
     y_pred, confidence = LSTM_model_stance(x_train, y_train_cat,
@@ -45,8 +45,8 @@ def objective_function_stance_branchLSTM_RumEv(params):
     uniq_dev_label = [fy_test[i] for i in uindices2]
 
     mactest_F = f1_score(uniq_dev_prediction, uniq_dev_label, average='macro')
-    # print(f"validation accuracy is: "
-    #       f"{np.sum(np.array(uniq_dev_label)==np.array(uniq_dev_prediction))/len(uniq_dev_label)}")
+    print(f"validation accuracy is: "
+          f"{np.sum(np.array(uniq_dev_label) == np.array(uniq_dev_prediction)) / len(uniq_dev_label):3f}")
     output = {'loss': 1 - mactest_F,
               'Params': params,
               'status': STATUS_OK,

@@ -82,7 +82,7 @@ class Text_Framework(Base_Framework):
         return train_loss / train_iter.batch_size, total_correct / examples_so_far
 
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
-                 log_results=True, vocab=None):
+                 log_results=False, vocab=None):
         train_flag = model.training
         model.eval()
         if log_results:
@@ -93,9 +93,22 @@ class Text_Framework(Base_Framework):
             pbar = tqdm(total=total_batches)
         examples_so_far = 0
         dev_loss = 0
+        dev_loss2 = 0
         total_correct = 0
+        already_seen = 0
+        valid_examples = 0
         for i, batch in enumerate(dev_iter):
             pred_logits, attention = model(batch)
+
+            str_ids = [id for id_ in batch.string_id for id in id_]
+            seen_mask = []
+            for id in str_ids:
+                if id in already_seen:
+                    seen_mask.append(0)
+                else:
+                    seen_mask.append(1)
+                    already_seen.append(id)
+
 
             pred_logits = pred_logits.view((-1, 4))
             labels = batch.stance_labels.view(-1)
@@ -106,6 +119,12 @@ class Text_Framework(Base_Framework):
             total_correct += self.calculate_correct(masked_logits, masked_labels)
             examples_so_far += len(masked_labels)
             dev_loss += loss.item()
+
+            masked_preds, masked_labels = masked_preds[seen_mask, :], masked_labels[seen_mask]
+            valid_examples += masked_preds.shape[0]
+            loss2 = lossfunction(masked_preds, masked_labels)
+            dev_loss2 += loss2.item()
+
             if verbose:
                 pbar.set_description(
                     f"dev loss: {dev_loss / (i + 1):.4f}, dev acc: {total_correct / examples_so_far:.4f}")

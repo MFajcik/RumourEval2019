@@ -79,7 +79,7 @@ def LSTM_model_stance(x_train, y_train, x_test, params):
                   metrics=['accuracy'])
     model.fit(x_train, y_train,
               batch_size=mb_size,
-              epochs=2, shuffle=True, class_weight=None)
+              epochs=num_epochs, shuffle=True, class_weight=None)
 
     # x_test has shape (966, 14, 314)
     pred_probabilities = model.predict(x_test, batch_size=mb_size)

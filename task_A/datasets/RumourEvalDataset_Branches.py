@@ -61,7 +61,8 @@ class RumourEval2019Dataset_Branches(tt.data.Dataset):
             ('raw_text', tt.data.RawField()),
             ('spacy_processed_text',
              tt.data.Field(batch_first=True,
-                           preprocessing=RumourEval2019Dataset_Branches.get_preprocess(sep_token)))
+                           preprocessing=RumourEval2019Dataset_Branches.get_preprocess(sep_token))),
+            ('string_id', tt.data.RawField())
         ]
 
     @staticmethod

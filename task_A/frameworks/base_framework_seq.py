@@ -10,6 +10,8 @@ from tqdm import tqdm
 
 from modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
+from task_A.datasets.RumourEvalDataset_Seq import RumourEval2019Dataset_Seq
+from task_A.frameworks.base_framework import Base_Framework
 from utils import count_parameters, get_timestamp
 
 __author__ = "Martin Fajčík"
@@ -25,18 +27,14 @@ step = 0
 # textonly + embopt (Best 3.9955|0.676177)
 
 # textonly 0.714337 after text preprocessing
-class Base_Framework:
-    def __init__(self, config: dict):
-        self.config = config
-        self.save_treshold = 0.855
-
+class Base_Framework_SEQ(Base_Framework):
     def build_dataset(self, path, fields):
-        return RumourEval2019Dataset_Branches(path, fields), {k: v for k, v in fields}
+        return RumourEval2019Dataset_Seq(path, fields), {k: v for k, v in fields}
 
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset_Branches.prepare_fields(self.config["hyperparameters"]["sep_token"])
+        fields = RumourEval2019Dataset_Seq.prepare_fields()
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
 
@@ -204,9 +202,3 @@ class Base_Framework:
             for level, correct in zip(levels, correct_vec):
                 sums_per_level[level] += correct.item()
             return torch.sum(correct_vec).item(), sums_per_level
-
-    def finalize_results_logging(self, csvf, workbook):
-        raise NotImplementedError
-
-    def init_result_logging(self):
-        raise NotImplementedError
