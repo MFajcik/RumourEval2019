@@ -3,7 +3,6 @@ import json
 import logging
 import math
 import os
-import socket
 import time
 from collections import Counter, defaultdict
 
@@ -16,17 +15,11 @@ from tqdm import tqdm
 
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
+from task_A.frameworks.bert_framework import map_stance_label_to_s
 from utils import count_parameters, get_timestamp
 
-map_stance_label_to_s = {
-    0: "support",
-    1: "comment",
-    2: "deny",
-    3: "query"
-}
 
-
-class BERT_Framework(Base_Framework):
+class BERT_Framework_with_f(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
         self.save_treshold = 0.83
@@ -71,41 +64,19 @@ class BERT_Framework(Base_Framework):
 
         return train_loss / total_batches, total_correct / examples_so_far
 
-    def predict(self, fname: str, model: torch.nn.Module, dev_iter: Iterator, task="subtaskaenglish"):
-        train_flag = model.training
-        model.eval()
-        answers = {"subtaskaenglish": dict(),
-                   "subtaskbenglish": dict(),
-                   "subtaskadanish": dict(),
-                   "subtaskbdanish": dict(),
-                   "subtaskarussian": dict(),
-                   "subtaskbrussian": dict()
-                   }
-        for i, batch in enumerate(dev_iter):
-            pred_logits = model(batch)
-            preds = torch.argmax(pred_logits, dim=1)
-            preds = list(preds.cpu().numpy())
-
-            for ix, p in enumerate(preds):
-                answers[task][batch.tweet_id[ix]] = map_stance_label_to_s[p.item()]
-
-        with open(fname, "w") as  answer_file:
-            json.dump(answers, answer_file)
-        if train_flag:
-            model.train()
-        logging.info(f"Writing results into {fname}")
-
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
+        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_f_and_text()
         train_data = RumourEval2019Dataset_BERTTriplets(config["train_data"], fields, self.tokenizer,
-                                                        max_length=config["hyperparameters"]["max_length"])
+                                                        max_length=config["hyperparameters"]["max_length"],
+                                                        include_features=True)
         dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,
-                                                      max_length=config["hyperparameters"]["max_length"])
+                                                      max_length=config["hyperparameters"]["max_length"],
+                                                      include_features=True)
 
         # torch.manual_seed(1570055016034928672 & ((1 << 63) - 1))
-        # torch.manual_seed(40)
+        torch.manual_seed(40)
 
         # 84.1077
 
@@ -124,32 +95,36 @@ class BERT_Framework(Base_Framework):
         # bert-base-uncased
         # bert-large-uncased,
         # bert-base-multilingual-cased
-        pretrained_model = torch.load(
-            "saved/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_ACC_0.83704_2019-01-10_12:14.pt").to(
-            device)
-        model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
-                                          state_dict=pretrained_model.state_dict()
-                                          ).to(device)
-        pretrained_model = None
-        # model =  modelfunc.from_pretrained(            ".BERTcache/bert_rumoureval_10_1/model.tar.gz").to(device)
+        model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache").to(device)
+
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
+
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
                              lr=config["hyperparameters"]["learning_rate"])
+
+        # lossfunction = torch.nn.CrossEntropyLoss()
+        # With L1
+        def CE_wL1(preds, labels, lmb=0.03):
+            def L1(model):
+                accumulator = 0
+                accumulator += torch.sum(torch.abs(model.ftransform.weight))
+                return accumulator
+
+            return F.cross_entropy(preds, labels) + lmb * L1(model)
+
         lossfunction = torch.nn.CrossEntropyLoss()
         start_time = time.time()
         try:
             best_val_loss = math.inf
             best_val_acc = 0
-
-            self.predict("answer_BERT_textnsource.json", model, dev_iter)
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                # train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                # log_results = epoch > 5
-                #
+                train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                log_results = epoch > 5
+
                 validation_loss, validation_acc, val_acc_per_level = self.validate(model, lossfunction, dev_iter,
-                                                                                   config, log_results=False)
+                                                                                   config, log_results=log_results)
                 sorted_val_acc_pl = sorted(val_acc_per_level.items(), key=lambda x: int(x[0]))
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
@@ -157,15 +132,15 @@ class BERT_Framework(Base_Framework):
                     best_val_acc = validation_acc
                 logging.info(
                     f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
-                #
-                # logging.debug(
-                #     f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
-                # logging.debug("\n".join([f"{k} - {v:.2f}" for k, v in sorted_val_acc_pl]))
-                # if validation_acc > self.save_treshold:
-                #     model.to(torch.device("cpu"))
-                #     torch.save(model,
-                #                f"saved/checkpoint_{str(self.__class__)}_ACC_{validation_acc:.5f}_{get_timestamp()}.pt")
-                #     model.to(device)
+
+                logging.debug(
+                    f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
+                logging.debug("\n".join([f"{k} - {v:.2f}" for k, v in sorted_val_acc_pl]))
+                if validation_acc > self.save_treshold:
+                    model.to(torch.device("cpu"))
+                    torch.save(model,
+                               f"saved/checkpoint_{str(self.__class__)}_ACC_{validation_acc:.5f}_{get_timestamp()}.pt")
+                    model.to(device)
         except KeyboardInterrupt:
             logging.info('-' * 120)
             logging.info('Exit from training early.')
@@ -173,7 +148,7 @@ class BERT_Framework(Base_Framework):
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
 
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
-                 log_results=True):
+                 log_results=False):
         train_flag = model.training
         model.eval()
 
@@ -237,10 +212,33 @@ class BERT_Framework(Base_Framework):
             model.train()
         return loss, acc, total_acc_per_level
 
+    def predict(self, fname: str, model: torch.nn.Module, dev_iter: Iterator, task="subtaskaenglish"):
+        train_flag = model.training
+        model.eval()
+        answers = {"subtaskaenglish": dict(),
+                   "subtaskbenglish": dict(),
+                   "subtaskadanish": dict(),
+                   "subtaskbdanish": dict(),
+                   "subtaskarussian": dict(),
+                   "subtaskbrussian": dict()
+                   }
+        for i, batch in enumerate(dev_iter):
+            pred_logits = model(batch)
+            preds = torch.argmax(pred_logits, dim=1)
+            preds = list(preds.cpu().numpy())
+
+            for ix, p in enumerate(preds):
+                answers[task][batch.tweet_id[ix]] = p
+
+        with open(fname, "w") as  answer_file:
+            json.dump(answers, answer_file)
+        if train_flag:
+            model.train()
+        logging.info(f"Writing results into {fname}")
+
     def finalize_results_logging(self, csvf, loss, acc):
         csvf.close()
-        os.rename(self.TMP_FNAME, f"introspection/introspection"
-        f"_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}_{socket.gethostname()}.tsv", )
+        os.rename(self.TMP_FNAME, f"introspection/introspection_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}.tsv", )
 
     RESULT_HEADER = ["Correct",
                      "data_id",
@@ -253,7 +251,7 @@ class BERT_Framework(Base_Framework):
                      "Processed_Text"]
 
     def init_result_logging(self):
-        self.TMP_FNAME = f"introspection/introspection_{str(self.__class__)}_{socket.gethostname()}.tsv"
+        self.TMP_FNAME = f"introspection/introspection_{str(self.__class__)}.tsv"
         csvf = open(self.TMP_FNAME, mode="w")
         writer = csv.writer(csvf, delimiter='\t')
         writer.writerow(self.__class__.RESULT_HEADER)
