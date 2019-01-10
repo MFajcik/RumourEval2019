@@ -70,8 +70,33 @@ pridanie klasifikacie veracity ku source tweetu -
 * Penalizacia u self attentionu nepomohla
 
 
-* FIXME:
-* dev samples in official baseline: 1485, dev samples in mine data - 1452 (4/1 - FIXED)
+* L1 reg vahy pre features:
+batch.hasnegation, -6.8358e-02
+batch.hasswearwords,  6.3869e-04
+batch.capitalratio,  1.1418e-02
+batch.hasperiod, 1.0274e-01
+batch.hasqmark,  1.4008e-01
+batch.hasemark, 3.6752e-02
+batch.hasurl, -2.3978e-02
+batch.haspic,1.4836e-05
+batch.charcount,1.5156e-01
+batch.wordcount, 3.8923e-02
+batch.issource,-9.8941e-02
+batch.Word2VecSimilarityWrtOther,5.6432e-02
+batch.Word2VecSimilarityWrtSource,1.2725e-01
+batch.Word2VecSimilarityWrtPrev-8.4859e-05
+
+* baseline bez avg-w2v
+78,8552 acc !
+
+"""
+torch.sum(self.final_layer.weight,0)[300:]
+Out[2]: 
+tensor([-6.8358e-02,  6.3869e-04,  1.1418e-02,  1.0274e-01,  1.4008e-01,
+         3.6752e-02, -2.3978e-02,  1.4836e-05,  1.5156e-01,  3.8923e-02,
+        -9.8941e-02,  5.6432e-02,  1.2725e-01, -8.4859e-05], device='cuda:0',
+       grad_fn=<SliceBackward>)
+"""
 
 * labeling scheme
 0 supp, 1 comm, 2 deny, 3 query

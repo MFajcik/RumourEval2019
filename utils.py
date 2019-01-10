@@ -1,3 +1,5 @@
+import math
+
 __author__ = "Martin Fajčík"
 
 import datetime
@@ -49,6 +51,24 @@ def setup_logging(
 def get_timestamp():
     return datetime.datetime.now().strftime('%Y-%m-%d_%H:%M')
 
+
+class VERACITY_LABELS:
+    true = 0
+    false = 1
+    unverified = 2
+
+
+def rmse(labels, pred_probabilities):
+    errors = []
+    for i, l in enumerate(labels):
+        confidence = pred_probabilities[i][l]
+        if l == VERACITY_LABELS.unverified:
+            errors.append((confidence) ** 2)
+
+        else:
+            errors.append((1 - confidence) ** 2)
+
+    return math.sqrt(sum(errors) / len(errors))
 
 def totext(batch, vocab, batch_first=True, remove_specials=True, check_for_zero_vectors=True):
     textlist = []

@@ -27,7 +27,7 @@ class Text_Feature_Framework(Base_Framework):
             torch.manual_seed(seed)
 
         config = self.config
-        fields = RumourEval2019Dataset_Branches.prepare_fields(self.config["hyperparameters"]["sep_token"])
+        fields = RumourEval2019Dataset_Branches.prepare_fields_for_text(self.config["hyperparameters"]["sep_token"])
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
 

@@ -72,7 +72,7 @@ class BERT_Framework(Base_Framework):
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields()
+        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
         train_data = RumourEval2019Dataset_BERTTriplets(config["train_data"], fields, self.tokenizer,
                                                         max_length=config["hyperparameters"]["max_length"])
         dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,

@@ -17,10 +17,10 @@ class RumourEval2019Dataset_Seq(tt.data.Dataset):
             super(RumourEval2019Dataset_Seq, self).__init__(examples, fields, **kwargs)
 
     @staticmethod
-    def prepare_fields():
-        text_field = lambda: tt.data.Field(batch_first=True)
-        float_field = lambda: tt.data.Field(use_vocab=False, batch_first=True, sequential=False,
-                                            dtype=torch.float)
+    def prepare_fields(text_field=lambda: tt.data.Field(batch_first=True),
+                       float_field=lambda: tt.data.Field(use_vocab=False, batch_first=True, sequential=False,
+                                                         dtype=torch.float)):
+
         return [
             ('avgw2v', tt.data.Field(use_vocab=False, dtype=torch.float, batch_first=True)),
             ('hasnegation', float_field()),
@@ -49,6 +49,7 @@ class RumourEval2019Dataset_Seq(tt.data.Dataset):
              tt.data.Field(use_vocab=False, dtype=torch.float, batch_first=True, pad_token=0)),
             ('id', tt.data.RawField()),
             ('branch_id', tt.data.RawField()),
+            ('tweet_id', tt.data.RawField()),
             ('stance_label', tt.data.Field(sequential=False, use_vocab=False, batch_first=True, is_target=True)),
             ('raw_text_prev', tt.data.RawField()),
             ('raw_text_src', tt.data.RawField()),
