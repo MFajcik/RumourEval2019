@@ -63,16 +63,14 @@ class Text_Framework_Seq(Base_Framework):
                                                    vectors_cache=config["vector_cache"])
         self.vocab = fields['spacy_processed_text'].vocab
 
-        device = torch.device("cuda:0" if config['cuda'] and
-                                          torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:0" if config['cuda'] and torch.cuda.is_available() else "cpu")
 
-        create_iter = lambda data: BucketIterator(data, sort_key=lambda x: -len(x.spacy_processed_text), sort=True,
-                                                  # shuffle=True,
-                                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-                                                  device=device)
-
-        train_iter = create_iter(train_data)
-        dev_iter = create_iter(dev_data)
+        train_iter = BucketIterator(train_data, shuffle=True,
+                                    batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                    device=device)
+        dev_iter = BucketIterator(dev_data, sort_key=lambda x: len(x.spacy_processed_text), sort=True,
+                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                  device=device)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
@@ -89,7 +87,8 @@ class Text_Framework_Seq(Base_Framework):
             best_val_acc = 0
             for epoch in range(config["hyperparameters"]["epochs"]):
                 train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config)
+                validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config,
+                                                                log_results=epoch > 20)
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
                 if validation_acc > best_val_acc:
@@ -98,7 +97,10 @@ class Text_Framework_Seq(Base_Framework):
                     f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
                 if validation_acc > self.save_treshold:
                     torch.save(model.to(torch.device("cpu")),
-                               f"saved/checkpoint_{str(self.__class__)}_ACC_{validation_acc:.5f}_{get_timestamp()}.pt")
+                               f"saved/checkpoint"
+                               f"_{str(self.__class__)}_ACC"
+                               f"_{validation_acc:.5f}_"
+                               f"L_{validation_loss:.5f}_{get_timestamp()}.pt")
                     model.to(torch.device(device))
         except KeyboardInterrupt:
             logging.info('-' * 120)
@@ -171,7 +173,7 @@ class Text_Framework_Seq(Base_Framework):
                 pbar.update(1)
             if log_results:
                 maxpreds, argmaxpreds = torch.max(F.softmax(pred_logits, -1), dim=1)
-                inp = model.prepare_inp(batch)
+                inp = batch.spacy_processed_text
                 text_s = totext(inp.view(-1, inp.shape[-1]), self.vocab)
                 pred_s = list(argmaxpreds.cpu().numpy())
                 target_s = list(batch.stance_label.cpu().numpy())
@@ -181,47 +183,48 @@ class Text_Framework_Seq(Base_Framework):
 
                 assert len(text_s) == len(pred_s) == len(correct_s) == len(
                     target_s) == len(prob_s)
+                global row
                 for i in range(len(text_s)):
                     writer.writerow([correct_s[i],
-                                     target_s[i],
-                                     pred_s[i],
+                                     map_stance_label_to_s[target_s[i]],
+                                     map_stance_label_to_s[pred_s[i]],
                                      prob_s[i],
                                      text_s[i]])
-                    # res = [correct_s[i],
-                    #        category_s[i],
-                    #        prob_s[i],
-                    #        histogram[target_s[i]].item(),
-                    #        root_s[i],
-                    #        target_s[i],
-                    #        pred_s[i]]
-                    # for col in range(len(res)):
-                    #     worksheet.write(row, col, str(res[col]))
-                    #
-                    # att_contexts = text_s[i].split()
-                    # att_sum_vec = attention[i].sum(0)
-                    #
-                    # att_vector = (att_sum_vec / att_sum_vec.max() * COLOR_RESOLUTION).int()
-                    # for col in range(len(res), len(res) + len(att_contexts)):
-                    #     j = col - len(res)
-                    #     worksheet.write(row, col, att_sum_vec[j].item())
-                    # row += 1
-                    # for col in range(len(res), len(res) + len(att_contexts)):
-                    #     j = col - len(res)
-                    #     selectedc = colors[max(att_vector[j].item() - 1, 0)].get_hex_l()
-                    #     opts = {'bg_color': selectedc}
-                    #     myformat = workbook.add_format(opts)
-                    #     worksheet.write(row, col, att_contexts[j], myformat)
-                    #
-                    # row += 1
-                    # for filt in range(attention[i].shape[0]):
-                    #     att_vector = (attention[i][filt] / attention[i][filt].max() * COLOR_RESOLUTION).int()
-                    #     for col in range(len(res), len(res) + len(att_contexts)):
-                    #         j = col - len(res)
-                    #         selectedc = colors[max(att_vector[j].item() - 1, 0)].get_hex_l()
-                    #         opts = {'bg_color': selectedc}
-                    #         myformat = workbook.add_format(opts)
-                    #         worksheet.write(row, col, att_contexts[j], myformat)
-                    #     row += 1
+                    res = [correct_s[i],
+                           map_stance_label_to_s[target_s[i]],
+                           map_stance_label_to_s[pred_s[i]],
+                           prob_s[i]]
+
+
+                    for col in range(len(res)):
+                        worksheet.write(row, col, str(res[col]))
+
+                    att_contexts = text_s[i].split()
+                    att_sum_vec = attention[i].sum(0)
+
+                    att_vector = (att_sum_vec / att_sum_vec.max() * Text_Framework_Seq.COLOR_RESOLUTION).int()
+                    for col in range(len(res), len(res) + len(att_contexts)):
+                        j = col - len(res)
+                        worksheet.write(row, col, att_sum_vec[j].item())
+                    row += 1
+                    for col in range(len(res), len(res) + len(att_contexts)):
+                        j = col - len(res)
+                        selectedc = Text_Framework_Seq.colors[max(att_vector[j].item() - 1, 0)].get_hex_l()
+                        opts = {'bg_color': selectedc}
+                        myformat = workbook.add_format(opts)
+                        worksheet.write(row, col, att_contexts[j], myformat)
+
+                    row += 1
+                    for filt in range(attention[i].shape[0]):
+                        att_vector = (attention[i][filt] / attention[i][
+                            filt].max() * Text_Framework_Seq.COLOR_RESOLUTION).int()
+                        for col in range(len(res), len(res) + len(att_contexts)):
+                            j = col - len(res)
+                            selectedc = Text_Framework_Seq.colors[max(att_vector[j].item() - 1, 0)].get_hex_l()
+                            opts = {'bg_color': selectedc}
+                            myformat = workbook.add_format(opts)
+                            worksheet.write(row, col, att_contexts[j], myformat)
+                        row += 1
         if train_flag:
             model.train()
         if log_results:
@@ -233,12 +236,13 @@ class Text_Framework_Seq(Base_Framework):
         workbook.close()
 
     def init_result_logging(self):
-        csvf = open(f"introspection.tsv", mode="w")
+        fname = f"introspection/fulltext_{get_timestamp()}"
+        csvf = open(f"{fname}.tsv", mode="w")
         writer = csv.writer(csvf, delimiter='\t')
         writer.writerow(Text_Framework.RESULT_HEADER)
         global row
         row = 0
-        workbook = xlsxwriter.Workbook(f"introspection.xlsx")
+        workbook = xlsxwriter.Workbook(f"{fname}.xlsx")
         worksheet = workbook.add_worksheet()
         for col in range(len(Text_Framework.RESULT_HEADER)):
             worksheet.write(row, col, Text_Framework.RESULT_HEADER[col])

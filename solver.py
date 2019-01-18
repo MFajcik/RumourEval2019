@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+from _socket import gethostname
 
 from solutionsA import SolutionA
 from utils import setup_logging
@@ -20,9 +21,12 @@ class TaskSolver():
 
 
 if __name__ == "__main__":
+    Experiment_Name = "Bert_nofeats"
     with open("configurations/config.json") as conffile:
         config = json.load(conffile)
-    setup_logging(os.path.basename(sys.argv[0]).split(".")[0], logpath="logs/",
+    setup_logging(os.path.basename(sys.argv[0]).split(".")[0],
+                  extra_name= Experiment_Name,
+                  logpath="logs/",
                   config_path="configurations/logging.yml")
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     logging.debug("Configuration:\n" + json.dumps(config, indent=4))

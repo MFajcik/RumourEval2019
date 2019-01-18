@@ -1,6 +1,8 @@
 import json
 import numpy as np
 
+from task_A.frameworks.bert_framework import map_s_to_label_stance
+
 
 def analyze_BRANCH_DATASET(fpath):
     with open(fpath) as dataf:
@@ -41,6 +43,19 @@ def print_clsinfo(classes):
     classes = np.array(classes)
     print(f"Class balance [ normalized ]: {(classes / classes.sum() * 100)}")
 
+def analyze_answers(fpath):
+    examples = 0
+    with open(fpath) as dataf:
+        data_json = json.load(dataf)
+        classes = [0] * 4
+        for e in data_json["subtaskaenglish"]:
+            examples += 1
+            cls = map_s_to_label_stance[data_json["subtaskaenglish"][e]]
+            classes[cls] += 1
+
+    print(f"Total unique examples: {examples}")
+    print_clsinfo(classes)
+
 
 # classes
 # Support / Deny / Query / Comment
@@ -48,5 +63,13 @@ def print_clsinfo(classes):
 # print("BRANCH DATASET")
 # analyze_BRANCH_DATASET("data_preprocessing/saved_data_RumEval2019_BRANCH/train/train.json")
 
+print (map_s_to_label_stance.keys())
 print("BERT DATASET")
+print("TRAIN")
 analyze_BERT_DATASET("data_preprocessing/saved_data_RumEval2019_SEQ/train/train.json")
+print("DEV")
+analyze_BERT_DATASET("data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json")
+
+
+print("MODEL_PREDS")
+analyze_answers("answer_BERT_textnsource.json")

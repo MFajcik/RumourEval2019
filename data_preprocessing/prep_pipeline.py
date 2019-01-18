@@ -19,8 +19,8 @@ from tqdm import tqdm
 
 from data_preprocessing.extract_thread_features import extract_thread_features_incl_response
 from data_preprocessing.help_prep_functions import loadW2vModel
-from data_preprocessing.preprocessing_reddit import load_data
-from data_preprocessing.preprocessing_tweets import load_dataset
+from data_preprocessing.preprocessing_reddit import load_data, load_test_data_reddit
+from data_preprocessing.preprocessing_tweets import load_dataset, load_test_data_twitter
 from data_preprocessing.transform_feature_dict import transform_feature_dict
 
 
@@ -43,14 +43,21 @@ def convert_label(label):
 def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'], use_reddit_data=True):
     path = 'data_preprocessing/saved_data_' + dataset
     folds = {}
-    folds = load_dataset()
-
-    if use_reddit_data:
-        reddit = load_data()
-
-        folds['train'].extend(reddit['train'])
-        folds['dev'].extend(reddit['dev'])
-        folds['test'].extend(reddit['test'])
+    # folds = load_dataset()
+    #
+    # if use_reddit_data:
+    # reddit = load_data()
+    #
+    #     folds['train'].extend(reddit['train'])
+    #     folds['dev'].extend(reddit['dev'])
+    #     folds['test'].extend(reddit['test'])
+    folds = load_test_data_twitter()
+    reddit_data = load_test_data_reddit()
+    folds['test'].extend(reddit_data['test'])
+    #
+    #     folds['train'].extend(reddit['train'])
+    #     folds['dev'].extend(reddit['dev'])
+    #     folds['test'].extend(reddit['test'])
 
     loadW2vModel()
 
@@ -89,7 +96,8 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
 
             # build data for source tweet for veracity
             for i in range(len(thread_features_array)):
-                fold_veracity_labels.append(convert_label(conversation['veracity']))
+                if not fset_name.endswith("test"):
+                    fold_veracity_labels.append(convert_label(conversation['veracity']))
                 conv_ids.append(conversation['id'])
 
         # % 0 supp, 1 comm,2 deny, 3 query
@@ -117,6 +125,7 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
                             "branch_id": f"{fold_idx}.{idx}",
                             "tweet_id": tweet_ids_branch[idx],
                             "stance_label": branch_labels[idx],
+                            "veracity_label": fold_veracity_labels[fold_idx] if e[idx]["issource"] > 0 else -1,
                             "raw_text": e[idx]["raw_text"],
                             "raw_text_prev": e[idx - 1]["raw_text"] if idx - 1 > -1 else "",
                             "raw_text_src": e[0]["raw_text"] if idx - 1 > -1 else "",
@@ -135,6 +144,83 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
                         jsonformat["Examples"].append(example)
 
                 json.dump(jsonformat, open(os.path.join(path_fold, f"{fold}.json"), "w"))
+            elif fset_name == "BUT_TEXT_test":
+                jsonformat = {"Examples": []}
+                cnt = 0
+                already_known_tweetids = set()
+                for fold_idx in tqdm(range(len(fold_features_dict))):
+                    e = fold_features_dict[fold_idx]
+                    tweet_ids_branch = tweet_ids[fold_idx]
+                    branch_labels = fold_stance_labels[fold_idx].tolist()
+                    for idx in range(len(e)):
+                        if tweet_ids_branch[idx] in already_known_tweetids:
+                            continue
+                        else:
+                            already_known_tweetids.add(tweet_ids_branch[idx])
+                        example = {
+                            "id": cnt,
+                            "branch_id": f"{fold_idx}.{idx}",
+                            "tweet_id": tweet_ids_branch[idx],
+                            "stance_label": -1,
+                            "veracity_label": -1,
+                            "raw_text": e[idx]["raw_text"],
+                            "raw_text_prev": e[idx - 1]["raw_text"] if idx - 1 > -1 else "",
+                            "raw_text_src": e[0]["raw_text"] if idx - 1 > -1 else "",
+                            "issource": e[idx]["issource"],
+                            "spacy_processed_text": e[idx]["spacy_processed_text"],
+                            'spacy_processed_BLvec': e[idx]['spacy_processed_BLvec'],
+                            'spacy_processed_POSvec': e[idx]['spacy_processed_POSvec'],
+                            'spacy_processed_DEPvec': e[idx]['spacy_processed_DEPvec'],
+                            'spacy_processed_NERvec': e[idx]['spacy_processed_NERvec'],
+                            "spacy_processed_text_prev": e[idx - 1]["spacy_processed_text"] if idx - 1 > -1 else "",
+                            "spacy_processed_text_src": e[0]["spacy_processed_text"] if idx - 1 > -1 else ""
+                        }
+                        cnt += 1
+                        example = {i: (v if type(v) is not np.ndarray else v.tolist())
+                                   for i, v in example.items()}
+                        jsonformat["Examples"].append(example)
+
+                json.dump(jsonformat, open(os.path.join(path_fold, f"{fold}.json"), "w"))
+            elif fset_name == "BUT_TEXT_VERACITY":
+                jsonformat = {"Examples": []}
+                cnt = 0
+                already_known_tweetids = set()
+                for fold_idx in tqdm(range(len(fold_features_dict))):
+                    e = fold_features_dict[fold_idx]
+                    tweet_ids_branch = tweet_ids[fold_idx]
+                    branch_labels = fold_stance_labels[fold_idx].tolist()
+                    for idx in range(len(e)):
+                        if e[idx]["issource"] == 0:
+                            continue
+                        if tweet_ids_branch[idx] in already_known_tweetids:
+                            continue
+                        else:
+                            already_known_tweetids.add(tweet_ids_branch[idx])
+                        example = {
+                            "id": cnt,
+                            "branch_id": f"{fold_idx}.{idx}",
+                            "tweet_id": tweet_ids_branch[idx],
+                            "stance_label": branch_labels[idx],
+                            "veracity_label": fold_veracity_labels[fold_idx],
+                            "raw_text": e[idx]["raw_text"],
+                            "raw_text_prev": e[idx - 1]["raw_text"] if idx - 1 > -1 else "",
+                            "raw_text_src": e[0]["raw_text"] if idx - 1 > -1 else "",
+                            "issource": e[idx]["issource"],
+                            "spacy_processed_text": e[idx]["spacy_processed_text"],
+                            'spacy_processed_BLvec': e[idx]['spacy_processed_BLvec'],
+                            'spacy_processed_POSvec': e[idx]['spacy_processed_POSvec'],
+                            'spacy_processed_DEPvec': e[idx]['spacy_processed_DEPvec'],
+                            'spacy_processed_NERvec': e[idx]['spacy_processed_NERvec'],
+                            "spacy_processed_text_prev": e[idx - 1]["spacy_processed_text"] if idx - 1 > -1 else "",
+                            "spacy_processed_text_src": e[0]["spacy_processed_text"] if idx - 1 > -1 else ""
+                        }
+                        cnt += 1
+                        example = {i: (v if type(v) is not np.ndarray else v.tolist())
+                                   for i, v in example.items()}
+                        jsonformat["Examples"].append(example)
+
+                json.dump(jsonformat, open(os.path.join(path_fold, f"{fold}.json"), "w"))
+
             elif fset_name == "BUTFeatures_Branch":
                 jsonformat = {"Examples": []}
                 alltexts = []
@@ -169,6 +255,7 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
                                 "branch_id": f"{fold_idx}.{idx}",
                                 "tweet_id": tweet_ids_branch[idx],
                                 "stance_label": fold_stance_labels[fold_idx].tolist()[idx],
+                                "veracity_label": fold_veracity_labels[fold_idx] if e[idx]["issource"] > 0 else -1,
                                 "raw_text_prev": e[idx - 1]["raw_text"] if idx - 1 > -1 else "",
                                 "raw_text_src": e[0]["raw_text"] if idx - 1 > -1 else "",
                                 "spacy_processed_text_prev": e[idx - 1]["spacy_processed_text"] if idx - 1 > -1 else "",
@@ -202,7 +289,7 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
 
 
 # %%
-def main(feats="BUT_Features"):
+def main(feats="BUT_TEXT_test"):
     if feats == 'SemEvalfeatures':
         SemEvalfeatures = ['avgw2v', 'hasnegation', 'hasswearwords',
                            'capitalratio', 'hasperiod', 'hasqmark',
@@ -235,6 +322,26 @@ def main(feats="BUT_Features"):
             'spacy_processed_DEPvec',
             'spacy_processed_NERvec']
         prep_pipeline(dataset='RumEval2019', fset_name=feats, feature_set=features)
+    elif feats == "BUT_TEXT_test":
+        features = [
+            'issource',
+            'raw_text',
+            'spacy_processed_text',
+            'spacy_processed_BLvec',
+            'spacy_processed_POSvec',
+            'spacy_processed_DEPvec',
+            'spacy_processed_NERvec']
+        prep_pipeline(dataset='RumEval2019', fset_name=feats, feature_set=features)
+    elif feats == "BUT_TEXT_VERACITY":
+        features = [
+            'issource',
+            'raw_text',
+            'spacy_processed_text',
+            'spacy_processed_BLvec',
+            'spacy_processed_POSvec',
+            'spacy_processed_DEPvec',
+            'spacy_processed_NERvec']
+        prep_pipeline(dataset='RumEval2019', fset_name=feats, feature_set=features)
     elif feats == "BUT_Features":
         features = [
             'avgw2v',
@@ -251,7 +358,17 @@ def main(feats="BUT_Features"):
             'spacy_processed_BLvec',
             'spacy_processed_POSvec',
             'spacy_processed_DEPvec',
-            'spacy_processed_NERvec']
+            'spacy_processed_NERvec',
+            'src_num_false_synonyms',
+            'src_num_false_antonyms',
+            'thread_num_false_synonyms',
+            'thread_num_false_antonyms',
+            'src_unconfirmed',
+            'src_rumour',
+            'thread_unconfirmed',
+            'thread_rumour',
+            'src_num_wh',
+            'thread_num_wh']
         prep_pipeline(dataset='RumEval2019', fset_name=feats, feature_set=features)
 
 

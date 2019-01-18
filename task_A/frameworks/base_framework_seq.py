@@ -72,7 +72,6 @@ class Base_Framework_SEQ(Base_Framework):
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
 
-        torch.manual_seed(42)
 
         # No need to build vocab for baseline
         # but fo future work I wrote RumourEval2019Dataset that
@@ -98,18 +97,18 @@ class Base_Framework_SEQ(Base_Framework):
                                      lr=config["hyperparameters"]["learning_rate"],
                                      betas=[0.9, 0.999], eps=1e-8)
 
-        # lossfunction = torch.nn.CrossEntropyLoss()
-        # With L1
-        def CE_wL1(preds, labels, lmb=0.01):
-            def L1(model):
-                accumulator = 0
-                for p in filter(lambda p: p.requires_grad, model.parameters()):
-                    accumulator += torch.sum(torch.abs(p))
-                return accumulator
-
-            return F.cross_entropy(preds, labels) + lmb * L1(model)
-
-        lossfunction = CE_wL1
+        lossfunction = torch.nn.CrossEntropyLoss()
+        # # With L1
+        # def CE_wL1(preds, labels, lmb=0.01):
+        #     def L1(model):
+        #         accumulator = 0
+        #         for p in filter(lambda p: p.requires_grad, model.parameters()):
+        #             accumulator += torch.sum(torch.abs(p))
+        #         return accumulator
+        #
+        #     return F.cross_entropy(preds, labels) + lmb * L1(model)
+        #
+        # lossfunction = CE_wL1
         start_time = time.time()
         try:
             best_val_loss = math.inf
@@ -117,7 +116,7 @@ class Base_Framework_SEQ(Base_Framework):
             for epoch in range(config["hyperparameters"]["epochs"]):
                 train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
                 validation_loss, validation_acc, val_acc_per_level = self.validate(model, lossfunction, dev_iter,
-                                                                                   config)
+                                                                                   config,log_results=epoch>70)
                 sorted_val_acc_pl = sorted(val_acc_per_level.items(), key=lambda x: int(x[0]))
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss

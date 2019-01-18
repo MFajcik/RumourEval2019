@@ -1,7 +1,9 @@
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.base_framework_seq import Base_Framework_SEQ
 from task_A.frameworks.bert_framework import BERT_Framework
+from task_A.frameworks.bert_framework_for_veracity import BERT_Framework_for_veracity
 from task_A.frameworks.bert_framework_with_f import BERT_Framework_with_f
+from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
 from task_A.frameworks.text_features_framework import Text_Feature_Framework
 from task_A.frameworks.text_framework_branch import Text_Framework
 from task_A.frameworks.text_framework_seq import Text_Framework_Seq
@@ -9,8 +11,10 @@ from task_A.models.baseline import Baseline
 from task_A.models.baseline_lstm import Baseline_LSTM
 from task_A.models.bert_with_features import BertModelForStanceClassificationWFeatures
 from task_A.models.sel_att_and_baseline import SelfAttandBsline
+from task_A.models.self_att_bert_tokenizer import SelfAttWithBertTokenizing
 from task_A.models.self_attention_text_only import SelAttTextOnly, SelAttTextOnlyWithoutPrepInput
 from task_A.models.text_BERT import BertModelForStanceClassification
+from task_B.models.text_BERT_with_veracity import BertModelForVeracityClassification
 
 __author__ = "Martin Fajčík"
 
@@ -48,6 +52,15 @@ class SolutionA:
         elif self.config["active_model"] == "BERT_withf":
             modelf = BertModelForStanceClassificationWFeatures
             fworkf = BERT_Framework_with_f
+
+        # In fact, this was an useless experiment, since we have only ~300 source post classified for veracity
+        elif self.config["active_model"] == "BERT_veracity":
+            modelf = BertModelForVeracityClassification
+            fworkf = BERT_Framework_for_veracity
+
+        elif self.config["active_model"] == "self_att_with_bert_tokenizer":
+            modelf = SelfAttWithBertTokenizing
+            fworkf = SelfAtt_BertTokenizing_Framework
 
         modelframework = fworkf(self.config["models"][self.config["active_model"]])
         modelframework.train(modelf)

@@ -4,6 +4,8 @@ import logging
 import math
 import os
 import time
+import socket
+
 from collections import Counter, defaultdict
 
 import torch
@@ -76,7 +78,7 @@ class BERT_Framework_with_f(Base_Framework):
                                                       include_features=True)
 
         # torch.manual_seed(1570055016034928672 & ((1 << 63) - 1))
-        torch.manual_seed(40)
+        # torch.manual_seed(40)
 
         # 84.1077
 
@@ -96,6 +98,13 @@ class BERT_Framework_with_f(Base_Framework):
         # bert-large-uncased,
         # bert-base-multilingual-cased
         model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache").to(device)
+        # pretrained_model = torch.load(
+        #     "saved/checkpoint_<class 'task_A.frameworks.bert_framework_with_f.BERT_Framework_with_f'>_ACC_0.83434_2019-01-11_14:23.pt").to(
+        #     device)
+        # model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
+        #                                   state_dict=pretrained_model.state_dict()
+        #                                   ).to(device)
+
 
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
@@ -103,7 +112,15 @@ class BERT_Framework_with_f(Base_Framework):
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
                              lr=config["hyperparameters"]["learning_rate"])
 
-        # lossfunction = torch.nn.CrossEntropyLoss()
+
+        # optimizerA = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
+        #                     lr=config["hyperparameters"]["learning_rate"])
+        #
+        # # No BERT training
+        # optimizerB = BertAdam([p[1]
+        #                       for p in model.named_parameters()
+        #                       if p[1].requires_grad and not p[0].startswith("bert.")],
+        #                      lr=config["hyperparameters"]["learning_rate"])
         # With L1
         def CE_wL1(preds, labels, lmb=0.03):
             def L1(model):
@@ -120,6 +137,7 @@ class BERT_Framework_with_f(Base_Framework):
             best_val_acc = 0
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
+                #optimizer = optimizerA if epoch > 1 else optimizerB
                 train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
                 log_results = epoch > 5
 
@@ -228,7 +246,7 @@ class BERT_Framework_with_f(Base_Framework):
             preds = list(preds.cpu().numpy())
 
             for ix, p in enumerate(preds):
-                answers[task][batch.tweet_id[ix]] = p
+                answers[task][batch.tweet_id[ix]] = map_stance_label_to_s[p.item()]
 
         with open(fname, "w") as  answer_file:
             json.dump(answers, answer_file)
@@ -239,7 +257,6 @@ class BERT_Framework_with_f(Base_Framework):
     def finalize_results_logging(self, csvf, loss, acc):
         csvf.close()
         os.rename(self.TMP_FNAME, f"introspection/introspection_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}.tsv", )
-
     RESULT_HEADER = ["Correct",
                      "data_id",
                      "tweet_id",
@@ -251,8 +268,9 @@ class BERT_Framework_with_f(Base_Framework):
                      "Processed_Text"]
 
     def init_result_logging(self):
-        self.TMP_FNAME = f"introspection/introspection_{str(self.__class__)}.tsv"
+        self.TMP_FNAME = f"introspection/introspection_{str(self.__class__)}_{socket.gethostname()}.tsv"
         csvf = open(self.TMP_FNAME, mode="w")
         writer = csv.writer(csvf, delimiter='\t')
         writer.writerow(self.__class__.RESULT_HEADER)
         return csvf, writer
+

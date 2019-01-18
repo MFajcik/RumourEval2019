@@ -2,6 +2,7 @@ import copy
 import math
 
 import torch
+import torch.nn.functional as F
 
 
 class Encoder(torch.nn.Module):
@@ -105,9 +106,11 @@ class SelfAttentiveEncoder(Encoder):
         self.ws1.weight.data.uniform_(-init_range, init_range)
         self.ws2.weight.data.uniform_(-init_range, init_range)
 
-    def forward(self, inp, emb, vocab):
+    def forward(self, inp, emb, vocab=None, padtoken=None):
         # outp has shape [len,bsz, nhid*2]
-        outp = self.rnn.forward(emb).contiguous()
+        # Experiment, remove rnn
+        # outp = self.rnn.forward(emb).contiguous()
+        outp = emb
         batch_size, inp_len, h_size2 = outp.size()  # [bsz, len, nhid*2]
         # flatten dimension 1 and 2
         compressed_embeddings = outp.view(-1, h_size2)  # [bsz*len, nhid*2]
@@ -123,7 +126,10 @@ class SelfAttentiveEncoder(Encoder):
 
         # Mask attention on padded sequence to zero
         alphas = torch.transpose(alphas, 1, 2).contiguous()
-        padded_attention = -1e8 * (concatenated_inp == vocab.stoi['<pad>']).float()
+        if padtoken is not None:
+            padded_attention = -1e8 * (concatenated_inp == padtoken).float()
+        else:
+            padded_attention = -1e8 * (concatenated_inp == vocab.stoi['<pad>']).float()
         alphas += padded_attention
 
         talhpas = alphas.view(-1, inp_len)  # [bsz*hop,inp_len]
@@ -133,7 +139,7 @@ class SelfAttentiveEncoder(Encoder):
         return torch.bmm(alphas, outp), alphas
 
 
-### Transformer transducer
+### Transformer
 
 def clones(module, N):
     "Produce N identical layers."
@@ -311,4 +317,4 @@ class MultiHeadedAttention(torch.nn.Module):
         # weighted average of value vectors
         return torch.matmul(p_attn, value), p_attn
 
-### End of transformer transducer
+### End of transformer

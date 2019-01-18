@@ -1,4 +1,5 @@
 import math
+import socket
 
 __author__ = "Martin Fajčík"
 
@@ -15,6 +16,7 @@ def setup_logging(
         default_level=logging.INFO,
         env_key='LOG_CFG',
         logpath=os.getcwd(),
+        extra_name="",
         config_path=None
 ):
     """
@@ -31,6 +33,7 @@ def setup_logging(
     if not os.path.exists(os.path.dirname(logpath)):
         os.makedirs(os.path.dirname(logpath))
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M")
+    stamp = timestamp+ "_"+socket.gethostname() + "_" + extra_name
 
     path = config_path if config_path is not None else os.getenv(env_key, None)
     if path is not None and os.path.exists(path):
@@ -38,14 +41,14 @@ def setup_logging(
             config = yaml.safe_load(f.read())
             for h in config['handlers'].values():
                 if h['class'] == 'logging.FileHandler':
-                    h['filename'] = os.path.join(logpath, module, timestamp, h['filename'])
+                    h['filename'] = os.path.join(logpath, module, stamp, h['filename'])
                     touch(h['filename'])
             for f in config['filters'].values():
                 if '()' in f:
                     f['()'] = globals()[f['()']]
             logging.config.dictConfig(config)
     else:
-        logging.basicConfig(level=default_level, filename=os.path.join(logpath, timestamp))
+        logging.basicConfig(level=default_level, filename=os.path.join(logpath,stamp ))
 
 
 def get_timestamp():
@@ -69,6 +72,7 @@ def rmse(labels, pred_probabilities):
             errors.append((1 - confidence) ** 2)
 
     return math.sqrt(sum(errors) / len(errors))
+
 
 def totext(batch, vocab, batch_first=True, remove_specials=True, check_for_zero_vectors=True):
     textlist = []
@@ -145,23 +149,28 @@ class DotDict(dict):
         pass
 
 
-def totext(batch, vocab, batch_first=True, remove_specials=False):
+def totext(batch, vocab, batch_first=True, remove_specials=False, check_for_zero_vectors=True):
     textlist = []
     if not batch_first:
         batch = batch.transpose(0, 1)
     for ex in batch:
-        try:
-            if remove_specials:
-                textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex if ix != vocab.stoi["<pad>"]]))
+        if remove_specials:
+            textlist.append(
+                ' '.join(
+                    [vocab.itos[ix.item()] for ix in ex
+                     if ix != vocab.stoi["<pad>"] and ix != vocab.stoi["<eos>"]]))
+        else:
+            if check_for_zero_vectors:
+                text = []
+                for ix in ex:
+                    if ix != vocab.stoi["<pad>"] and ix != vocab.stoi["<eos>"] \
+                            and vocab.vectors[ix.item()].equal(vocab.vectors[vocab.stoi["<unk>"]]):
+                        text.append(f"[OOV]{vocab.itos[ix.item()]}")
+                    else:
+                        text.append(vocab.itos[ix.item()])
+                textlist.append(' '.join(text))
             else:
                 textlist.append(' '.join([vocab.itos[ix.item()] for ix in ex]))
-        except IndexError as e:
-            for ix in ex:
-                try:
-                    vocab.itos[ix.item()]
-                except IndexError as ex:
-                    logging.error(f"Vocabulary index out of range: {ix}")
-            raise (e)
     return textlist
 
 

@@ -112,7 +112,7 @@ def preprocess_text(text: str, opts, nlpengine=None, lang='en', special_tags=["<
         # So we preprocess links separately
         text = re.sub(r"(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?", "$URL$",
                       text.strip())
-        twitter_preprocessor.set_options('mentions', 'hashtags')
+        twitter_preprocessor.set_options('mentions')
         text = twitter_preprocessor.tokenize(text)
         # processed_chunk = twitter_preprocessor.clean(text)
     if nlpengine is None:
@@ -208,7 +208,7 @@ def initopts():
     o.remove_stop_words = False
     o.lemmatize_words = False
     o.num_replacement = "[NUM]"
-    o.to_lowercase = True
+    o.to_lowercase = False
     o.replace_nums = False  # Nums are important, since rumour may be lying about count
     o.eos = "[EOS]"
     o.add_eos = True

@@ -3,17 +3,18 @@
   "models": {
     "baseline": {
       "hyperparameters": {
-        "learning_rate": 0.00008,
-        "inp_size": 314,
+        "learning_rate": 5e-6,
+        "inp_size": 320,
         "dropout_rate": 0.5,
         "batch_size": 16,
         "epochs": 70,
         "sep_token": "<sep>",
-        "FC_layers": 2,
+        "FC_layers": 1,
         "FC_size": 320
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_BRANCH/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_BRANCH/dev/dev.json",
+      "test_data" : "data_preprocessing/saved_data_RumEval2019_test_data/test/test.json",
       "cuda": true,
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
@@ -62,15 +63,16 @@
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
     },
+
     "selfatt_textonly_seq": {
       "hyperparameters": {
-        "learning_rate": 1e-05,
+        "learning_rate": 5e-06,
         "dropout_rate": 0.5,
-        "batch_size": 16,
+        "batch_size": 32,
         "epochs": 70,
         "sep_token": "<sep>",
         "RNN_nhidden": 300,
-        "RNN_layers": 1,
+        "RNN_layers": 2,
         "RNN_input_dim": 300,
         "RNN_clip": 0.5,
         "ATTENTION_nhidden": 320,
@@ -78,8 +80,45 @@
         "FC_layers": 0,
         "FC_size": 300,
         "cov_penalization": 0,
-        "scale_emb_grad_by_freq": false,
+        "scale_emb_grad_by_freq": true,
         "optimize_embeddings": true
+      },
+      "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/dev/dev.json",
+      "cuda": true,
+      "embeddings": "fasttext.en.300d",
+      "vector_cache": "../Figurative_Language/.vector_cache"
+    },
+    "self_att_with_bert_tokenizer": {
+      "hyperparameters": {
+        "learning_rate": 0.00001,
+        "dropout_rate": 0.5,
+        "batch_size": 32,
+        "epochs": 200,
+        "RNN_nhidden": 384,
+        "RNN_layers": 1,
+        "RNN_input_dim": 768,
+        "RNN_clip": 0.5,
+        "ATTENTION_nhidden": 788,
+        "ATTENTION_hops": 10,
+        "FC_layers": 0,
+        "FC_size": 768,
+        "cov_penalization": 0,
+        "scale_emb_grad_by_freq": true,
+        "optimize_embeddings": true,
+
+        "max_length": 512,
+        "attention_probs_dropout_prob": 0.5,
+        "hidden_act": "gelu",
+        "hidden_dropout_prob": 0.5,
+        "hidden_size": 768,
+        "initializer_range": 0.02,
+        "intermediate_size": 3072,
+        "max_position_embeddings": 512,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 12,
+        "type_vocab_size": 2,
+        "vocab_size": 30522
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/dev/dev.json",
@@ -89,14 +128,14 @@
     },
     "features_seq": {
       "hyperparameters": {
-        "learning_rate": 0.00008,
-        "inp_size": 314,
+        "learning_rate": 0.0008,
+        "inp_size": 319,
         "dropout_rate": 0.5,
         "batch_size": 16,
         "epochs": 120,
         "sep_token": "<sep>",
         "FC_layers": 2,
-        "FC_size": 320
+        "FC_size": 319
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/dev/dev.json",
@@ -108,7 +147,7 @@
       "hyperparameters": {
         "learning_rate": 0.000001,
         "batch_size": 8,
-        "true_batch_size": 8,
+        "true_batch_size": 32,
         "max_length": 180,
         "epochs": 90,
         "attention_probs_dropout_prob": 0.5,
@@ -127,13 +166,36 @@
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json",
       "cuda": true
     },
+    "BERT_veracity": {
+      "hyperparameters": {
+        "learning_rate": 0.000005,
+        "batch_size": 8,
+        "true_batch_size": 24,
+        "max_length": 180,
+        "epochs": 90,
+        "attention_probs_dropout_prob": 0.4,
+        "hidden_act": "gelu",
+        "hidden_dropout_prob": 0.4,
+        "hidden_size": 768,
+        "initializer_range": 0.02,
+        "intermediate_size": 3072,
+        "max_position_embeddings": 512,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 12,
+        "type_vocab_size": 2,
+        "vocab_size": 30522
+      },
+      "train_data": "data_preprocessing/saved_data_RumEval2019_Veracity/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019_Veracity/dev/dev.json",
+      "cuda": true
+    },
     "BERT_withf": {
       "hyperparameters": {
         "learning_rate": 0.000001,
-        "batch_size": 4,
+        "batch_size": 2,
         "true_batch_size": 16,
         "max_length": 256,
-        "epochs": 90,
+        "epochs": 150,
         "attention_probs_dropout_prob": 0.5,
         "hidden_act": "gelu",
         "hidden_dropout_prob": 0.5,

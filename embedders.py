@@ -8,7 +8,6 @@ class Embedder(torch.nn.Module):
         super().__init__()
         self.scale_grad = config['scale_emb_grad_by_freq']
         self.init_vocab(vocab, config['optimize_embeddings'])
-        logging.info(f"Scale grad by freq: {self.scale_grad}")
         logging.info(f"Optimize embeddings = {config['optimize_embeddings']}")
         logging.info(f"Scale grad by freq: {self.scale_grad}")
         logging.info(f"Vocabulary size = {len(vocab.vectors)}")

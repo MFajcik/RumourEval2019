@@ -92,7 +92,7 @@ def extract_thread_features(conversation):
         postag_binary[possible_postags.index(tok)] = 1
     feature_dict['pos'] = postag_binary
     false_synonyms = ['false', 'bogus', 'deceitful', 'dishonest',
-                      'distorted', 'erroneous', 'fake', 'fanciful',
+                      'distorted', 'erroneous', 'error','fake', 'fanciful',
                       'faulty', 'fictitious', 'fraudulent',
                       'improper', 'inaccurate', 'incorrect',
                       'invalid', 'misleading', 'mistaken', 'phony',
@@ -101,7 +101,7 @@ def extract_thread_features(conversation):
                       'casuistic', 'concocted', 'cooked-up',
                       'counterfactual', 'deceiving', 'delusive', 'ersatz',
                       'fallacious', 'fishy', 'illusive', 'imaginary',
-                      'inexact', 'lying', 'mendacious',
+                      'inexact', 'lying','lie','reject', 'mendacious',
                       'misrepresentative', 'off the mark', 'sham',
                       'sophistical', 'trumped up', 'unsound']
     false_antonyms = ['accurate', 'authentic', 'correct', 'fair', 'faithful',

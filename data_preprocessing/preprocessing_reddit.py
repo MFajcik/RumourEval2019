@@ -20,6 +20,85 @@ def listdir_nohidden(path):
     return new_contents
 
 
+def load_test_data_reddit(path = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/dummy_test_data/reddit-english"):
+
+    conversation_ids = listdir_nohidden(path)
+    conversations = {}
+
+    conversations['dev'] = []
+    conversations['train'] = []
+    conversations['test'] = []
+
+
+    for id in conversation_ids:
+        conversation = {}
+        conversation['id'] = id
+        path_src = path + '/' + id + '/source-tweet'
+        files_t = sorted(listdir_nohidden(path_src))
+        with open(os.path.join(path_src, files_t[0])) as f:
+            for line in f:
+                src = json.loads(line)
+
+                src['text'] = src['data']['children'][0]['data']['title']
+                src['user'] = src['data']['children'][0]['data']['author']
+
+                if files_t[0].endswith('.json'):
+                    filename = files_t[0][:-5]
+                    src['id_str'] = filename
+                else:
+                    print("No, no I don't like that")
+
+                src['used'] = 0
+                src['setA'] = 'test'
+                src['setB'] = 'test'
+
+                conversation['source'] = src
+
+        tweets = []
+        path_repl = path + '/' + id + '/replies'
+        files_t = sorted(listdir_nohidden(path_repl))
+        for repl_file in files_t:
+            with open(os.path.join(path_repl, repl_file)) as f:
+                for line in f:
+                    tw = json.loads(line)
+                    if 'body' in list(tw['data'].keys()):
+
+                        tw['text'] = tw['data']['body']
+                        tw['user'] = tw['data']['author']
+
+                        if repl_file.endswith('.json'):
+                            filename = repl_file[:-5]
+                            tw['id_str'] = filename
+                        else:
+                            print("No, no I don't like that reply")
+
+                        tw['used'] = 0
+                        tw['setA'] = 'test'
+
+                        tweets.append(tw)
+                    else:
+                        tw['text'] = ''
+                        tw['user'] = ''
+                        tw['used'] = 0
+                        if repl_file.endswith('.json'):
+                            filename = repl_file[:-5]
+                            tw['id_str'] = filename
+                        else:
+                            print("No, no I don't like that reply")
+
+                        tw['setA'] = 'test'
+                        tweets.append(tw)
+        conversation['replies'] = tweets
+        path_struct = path + '/' + id + '/structure.json'
+
+        with open(path_struct, 'r') as f:
+            struct = json.load(f)
+            conversation['structure'] = struct
+            branches = tree2branches(conversation['structure'])
+            conversation['branches'] = branches
+
+        conversations['test'].append(conversation)
+    return conversations
 # %%
 
 def load_data():
