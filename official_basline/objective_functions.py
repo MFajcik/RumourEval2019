@@ -45,8 +45,8 @@ def objective_function_stance_branchLSTM_RumEv(params):
     uniq_dev_label = [fy_test[i] for i in uindices2]
 
     mactest_F = f1_score(uniq_dev_prediction, uniq_dev_label, average='macro')
-    print(f"validation accuracy is: "
-          f"{np.sum(np.array(uniq_dev_label) == np.array(uniq_dev_prediction)) / len(uniq_dev_label):3f}")
+    print(f"validation F1 is: "
+          f"{mactest_F:3f}")
     output = {'loss': 1 - mactest_F,
               'Params': params,
               'status': STATUS_OK,

@@ -1,4 +1,18 @@
+
 ##Notes:
+Skusal som pridat aj pos-ner tagy
+problem s maskovanim paddingu
+zda sa ze trenovanie modelov z shuffle funguje horsie nez trenovanie modelov bez shufflovania
+
+optimalizacia na F1:
+SelfAtt bez weighting scheme - ~ 0.44
+SelfAtt z weighting scheme ~ 0.46 - 0.47
+Bert - ~0.46 bez vah
+Bert - ~0.50 s vahami
+
+TODO remove 6 posts without text from training data
+
+
 BERT:
 predspracovanie cez twitter preprocesing (nahradenie url,mentionov atp specialnymi tokenmi) - pomohlo
 
@@ -86,6 +100,22 @@ batch.Word2VecSimilarityWrtOther,5.6432e-02
 batch.Word2VecSimilarityWrtSource,1.2725e-01
 batch.Word2VecSimilarityWrtPrev-8.4859e-05
 
+*BERT + issource bez trenovania BERTa
+2019-01-10 15:13:46,439 INFO root: Epoch 66, Validation loss|acc: 0.733636|0.810774 - (Best 0.7336|0.810774)
+
+* BErt + issource je velmi zly v denyovani
+DEV
+Total unique examples: 1485
+Class balance: [102, 1181, 82, 120]
+Class balance [ normalized ]: [ 6.86868687 79.52861953  5.52188552  8.08080808]
+Class balance: [29, 0, 3, 6]
+Class balance [ normalized ]: [76.31578947  0.          7.89473684 15.78947368]
+MODEL_PREDS
+Total unique examples: 1485
+Class balance: [47, 1354, 3, 81]
+Class balance [ normalized ]: [ 3.16498316 91.17845118  0.2020202   5.45454545]
+
+
 * baseline bez avg-w2v
 78,8552 acc !
 
@@ -98,8 +128,24 @@ tensor([-6.8358e-02,  6.3869e-04,  1.1418e-02,  1.0274e-01,  1.4008e-01,
        grad_fn=<SliceBackward>)
 """
 
+2x bert - nepomohol
+
+pridanie sentiment analyzy -  stabilnejsi trening?, zda sa 
+
+pridanie velkych pismien a hashtagov - nepomohlo
+
+pridanie dalsich featur (src_num_false_synonyms	, src_num_false_antonyms,
+ thread_num_false_synonyms	, thread_num_false_antonyms	,
+  src_unconfirmed	, src_rumour	, thread_unconfirmed	, 
+  thread_rumour	, src_num_wh	, thread_num_wh)
+- nepomohlo
+
+
 * labeling scheme
 0 supp, 1 comm, 2 deny, 3 query
+
+
+* Self - attention without recurrent neural network actually works equally good as BERT, but the training seems to be more stable!
 
 * distribucia hlbky datasetu
 

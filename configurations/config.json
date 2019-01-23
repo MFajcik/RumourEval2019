@@ -1,6 +1,17 @@
 {
   "active_model": "BERT_textonly",
   "models": {
+    "ensemble": {
+      "hyperparameters": {
+        "learning_rate": 0.000001,
+        "batch_size": 8,
+        "max_length": 180
+      },
+      "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json",
+      "test_data": "data_preprocessing/saved_data_RumEval2019_TEST/test/test.json",
+      "cuda": true
+    },
     "baseline": {
       "hyperparameters": {
         "learning_rate": 5e-6,
@@ -14,7 +25,7 @@
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_BRANCH/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_BRANCH/dev/dev.json",
-      "test_data" : "data_preprocessing/saved_data_RumEval2019_test_data/test/test.json",
+      "test_data": "data_preprocessing/saved_data_RumEval2019_test_data/test/test.json",
       "cuda": true,
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
@@ -63,7 +74,6 @@
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
     },
-
     "selfatt_textonly_seq": {
       "hyperparameters": {
         "learning_rate": 5e-06,
@@ -106,7 +116,6 @@
         "cov_penalization": 0,
         "scale_emb_grad_by_freq": true,
         "optimize_embeddings": true,
-
         "max_length": 512,
         "attention_probs_dropout_prob": 0.5,
         "hidden_act": "gelu",
@@ -152,7 +161,7 @@
         "epochs": 90,
         "attention_probs_dropout_prob": 0.5,
         "hidden_act": "gelu",
-        "hidden_dropout_prob": 0.5,
+        "hidden_dropout_prob": 0.1,
         "hidden_size": 768,
         "initializer_range": 0.02,
         "intermediate_size": 3072,

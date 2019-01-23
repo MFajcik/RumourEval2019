@@ -2,7 +2,9 @@ from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.base_framework_seq import Base_Framework_SEQ
 from task_A.frameworks.bert_framework import BERT_Framework
 from task_A.frameworks.bert_framework_for_veracity import BERT_Framework_for_veracity
+from task_A.frameworks.bert_framework_hyperparam_tuning import BERT_Framework_Hyperparamopt
 from task_A.frameworks.bert_framework_with_f import BERT_Framework_with_f
+from task_A.frameworks.ensemble_framework import Ensemble_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
 from task_A.frameworks.text_features_framework import Text_Feature_Framework
 from task_A.frameworks.text_framework_branch import Text_Framework
@@ -45,7 +47,7 @@ class SolutionA:
             fworkf = Text_Feature_Framework
         elif self.config["active_model"] == "BERT_textonly":
             modelf = BertModelForStanceClassification
-            fworkf = BERT_Framework
+            fworkf = BERT_Framework_Hyperparamopt
         elif self.config["active_model"] == "features_seq":
             modelf = Baseline
             fworkf = Base_Framework_SEQ
@@ -61,6 +63,11 @@ class SolutionA:
         elif self.config["active_model"] == "self_att_with_bert_tokenizer":
             modelf = SelfAttWithBertTokenizing
             fworkf = SelfAtt_BertTokenizing_Framework
+
+        elif self.config["active_model"] ==  "ensemble":
+            modelf = BertModelForStanceClassification
+            fworkf = Ensemble_Framework
+
 
         modelframework = fworkf(self.config["models"][self.config["active_model"]])
         modelframework.train(modelf)

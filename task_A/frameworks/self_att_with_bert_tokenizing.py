@@ -6,9 +6,11 @@ import os
 import socket
 import time
 from collections import Counter, defaultdict
+from typing import Iterable
 
 import torch
 import torch.nn.functional as F
+import xlsxwriter
 from pytorch_pretrained_bert import BertAdam, BertTokenizer
 from sklearn import metrics
 from torch.nn.modules.loss import _Loss
@@ -17,7 +19,8 @@ from tqdm import tqdm
 
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
 from task_A.frameworks.base_framework import Base_Framework
-from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
+from task_A.frameworks.text_framework_branch import Text_Framework
+from task_A.frameworks.text_framework_seq import Text_Framework_Seq
 from utils import count_parameters, get_timestamp
 
 map_stance_label_to_s = {
@@ -29,10 +32,21 @@ map_stance_label_to_s = {
 map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 
 
-class BERT_Framework(Base_Framework):
+class SelfAtt_BertTokenizing_Framework(Base_Framework):
+    @staticmethod
+    def get_class_weights(examples: Iterable, fieldname: str, classes: int, min_fraction=1) -> torch.FloatTensor:
+        arr = torch.zeros(classes)
+        for e in examples:
+            arr[int(getattr(e, fieldname))] += 1
+
+        # m = arr.max().item()
+        # arr += (m // min_fraction) + 1  # Numerical stability
+        arrmax = arr.max().expand(classes)
+        return arrmax / arr
+
     def __init__(self, config: dict):
         super().__init__(config)
-        self.save_treshold = 0.52
+        self.save_treshold = 0.83
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
@@ -44,33 +58,26 @@ class BERT_Framework(Base_Framework):
         train_loss = 0
         total_correct = 0
 
-        update_ratio = config["hyperparameters"]["true_batch_size"] // config["hyperparameters"]["batch_size"]
         optimizer.zero_grad()
-        updated = False
         for i, batch in enumerate(train_iter):
-            updated = False
-            pred_logits = model(batch)
+            pred_logits, attention = model(batch)
 
-            loss = lossfunction(pred_logits, batch.stance_label) / update_ratio
+            loss = lossfunction(pred_logits, batch.stance_label)
             loss.backward()
 
-            if (i + 1) % update_ratio == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-                updated = True
+            optimizer.step()
+            optimizer.zero_grad()
 
             total_correct += self.calculate_correct(pred_logits, batch.stance_label)
             examples_so_far += len(batch.stance_label)
             train_loss += loss.item()
             if verbose:
+                # This is just to the loss rises
+                # Dropout destroys true loss/accuracy
                 pbar.set_description(
                     f"train loss:"
                     f" {train_loss / (i + 1):.4f}, train acc: {total_correct / examples_so_far:.4f}")
                 pbar.update(1)
-
-        if not updated:
-            optimizer.step()
-            optimizer.zero_grad()
 
         return train_loss / total_batches, total_correct / examples_so_far
 
@@ -112,13 +119,11 @@ class BERT_Framework(Base_Framework):
 
         # 84.1077
 
-
-
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
 
-        create_iter = lambda data: BucketIterator(data, #sort_key=lambda x: -len(x.text), sort=True,
-                                                  shuffle=True,
+        create_iter = lambda data: BucketIterator(data, sort_key=lambda x: -len(x.text), sort=True,
+                                                  # shuffle=True,
                                                   batch_size=config["hyperparameters"]["batch_size"], repeat=False,
                                                   device=device)
         train_iter = create_iter(train_data)
@@ -130,13 +135,15 @@ class BERT_Framework(Base_Framework):
         # bert-large-uncased,
         # bert-base-multilingual-cased
         # pretrained_model = torch.load(
-        #     "saved/dev/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_F1_0.53206_2019-01-16_18:28.pt").to(
+        #     "saved/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_ACC_0.83704_2019-01-10_12:14.pt").to(
         #     device)
         # model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
         #                                   state_dict=pretrained_model.state_dict()
         #                                   ).to(device)
         # pretrained_model = None
-        model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache").to(device)
+        model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache")
+        model.extra_init(config, self.tokenizer)
+        model = model.to(device)
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
@@ -148,9 +155,7 @@ class BERT_Framework(Base_Framework):
         #                       for p in model.named_parameters()
         #                       if p[1].requires_grad and not p[0].startswith("bert.")],
         #                      lr=config["hyperparameters"]["learning_rate"])
-        #lossfunction = torch.nn.CrossEntropyLoss()
-
-        weights = SelfAtt_BertTokenizing_Framework.get_class_weights(train_data.examples, "stance_label", 4, min_fraction=1)
+        weights = self.__class__.get_class_weights(train_data.examples, "stance_label", 4, min_fraction=1)
 
         logging.info("class weights")
         logging.info(f"{str(weights.numpy().tolist())}")
@@ -161,14 +166,17 @@ class BERT_Framework(Base_Framework):
             best_val_acc = 0
             best_val_F1 = 0
 
-            self.predict("answer_BERTF1_textonly.json", model, dev_iter)
+            # self.predict("answer_BERT_textnsource.json", model, dev_iter)
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                #self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                log_results = epoch > 5
-                train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config, log_results=False)
-                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction, dev_iter,
-                                                                                   config, log_results=log_results)
+                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                log_results = epoch > 450
+                train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
+                                                                   log_results=False)
+                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction,
+                                                                                           dev_iter,
+                                                                                           config,
+                                                                                           log_results=log_results)
                 sorted_val_acc_pl = sorted(val_acc_per_level.items(), key=lambda x: int(x[0]))
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
@@ -186,13 +194,12 @@ class BERT_Framework(Base_Framework):
                 logging.debug(
                     f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
                     f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})")
-
                 logging.debug("\n".join([f"{k} - {v:.2f}" for k, v in sorted_val_acc_pl]))
-                if val_F1 > self.save_treshold:
-                    # Map to CPU before saving, because this requires additional memory /for some reason/
+
+                if validation_acc > self.save_treshold:
                     model.to(torch.device("cpu"))
                     torch.save(model,
-                               f"saved/checkpoint_{str(self.__class__)}_F1_{val_F1:.5f}_{get_timestamp()}.pt")
+                               f"saved/checkpoint_{str(self.__class__)}_ACC_{validation_acc:.5f}_{get_timestamp()}.pt")
                     model.to(device)
         except KeyboardInterrupt:
             logging.info('-' * 120)
@@ -209,16 +216,17 @@ class BERT_Framework(Base_Framework):
         if verbose:
             pbar = tqdm(total=total_batches)
         if log_results:
-            csvf, writer = self.init_result_logging()
+            csvf, workbook, worksheet, writer = self.init_result_logging()
         examples_so_far = 0
         dev_loss = 0
         total_correct = 0
         total_correct_per_level = Counter()
         total_per_level = defaultdict(lambda: 0)
+
         total_labels = []
         total_preds = []
         for i, batch in enumerate(dev_iter):
-            pred_logits = model(batch)
+            pred_logits, attention = model(batch)
 
             loss = lossfunction(pred_logits, batch.stance_label)
 
@@ -238,6 +246,7 @@ class BERT_Framework(Base_Framework):
             maxpreds, argmaxpreds = torch.max(F.softmax(pred_logits, -1), dim=1)
             total_preds += list(argmaxpreds.cpu().numpy())
             total_labels += list(batch.stance_label.cpu().numpy())
+
             if log_results:
                 text_s = [' '.join(self.tokenizer.convert_ids_to_tokens(batch.text[i].cpu().numpy())) for i in
                           range(batch.text.shape[0])]
@@ -249,31 +258,66 @@ class BERT_Framework(Base_Framework):
 
                 assert len(text_s) == len(pred_s) == len(correct_s) == len(
                     target_s) == len(prob_s)
+                global row
                 for i in range(len(text_s)):
                     writer.writerow([correct_s[i],
-                                     batch.id[i],
-                                     batch.tweet_id[i],
-                                     branch_levels[i],
                                      map_stance_label_to_s[target_s[i]],
                                      map_stance_label_to_s[pred_s[i]],
                                      prob_s[i],
-                                     batch.raw_text[i],
                                      text_s[i]])
+                    res = [correct_s[i],
+                           map_stance_label_to_s[target_s[i]],
+                           map_stance_label_to_s[pred_s[i]],
+                           prob_s[i]]
+
+                    for col in range(len(res)):
+                        worksheet.write(row, col, str(res[col]))
+
+                    att_contexts = text_s[i].split()
+                    att_sum_vec = attention[i].sum(0)
+
+                    att_vector = (att_sum_vec / att_sum_vec.max() * Text_Framework_Seq.COLOR_RESOLUTION).int()
+                    for col in range(len(res), len(res) + len(att_contexts)):
+                        j = col - len(res)
+                        worksheet.write(row, col, att_sum_vec[j].item())
+                    row += 1
+                    for col in range(len(res), len(res) + len(att_contexts)):
+                        j = col - len(res)
+                        selectedc = Text_Framework_Seq.colors[max(att_vector[j].item() - 1, 0)].get_hex_l()
+                        opts = {'bg_color': selectedc}
+                        myformat = workbook.add_format(opts)
+                        worksheet.write(row, col, att_contexts[j], myformat)
+
+                    row += 1
+                    for filt in range(attention[i].shape[0]):
+                        att_vector = (attention[i][filt] / attention[i][
+                            filt].max() * Text_Framework_Seq.COLOR_RESOLUTION).int()
+                        for col in range(len(res), len(res) + len(att_contexts)):
+                            j = col - len(res)
+                            selectedc = Text_Framework_Seq.colors[max(att_vector[j].item() - 1, 0)].get_hex_l()
+                            opts = {'bg_color': selectedc}
+                            myformat = workbook.add_format(opts)
+                            worksheet.write(row, col, att_contexts[j], myformat)
+                        row += 1
 
         loss, acc = dev_loss / total_batches, total_correct / examples_so_far
         total_acc_per_level = {depth: total_correct_per_level.get(depth, 0) / total for depth, total in
                                total_per_level.items()}
         F1 = metrics.f1_score(total_labels, total_preds, average="macro")
         if log_results:
-            self.finalize_results_logging(csvf, loss, F1)
+            self.finalize_results_logging(csvf, workbook, acc, loss)
         if train_flag:
             model.train()
         return loss, acc, total_acc_per_level, F1
 
-    def finalize_results_logging(self, csvf, loss, f1):
+    def finalize_results_logging(self, csvf, workbook, acc, loss):
         csvf.close()
-        os.rename(self.TMP_FNAME, f"introspection/introspection"
-        f"_{str(self.__class__)}_A{f1:.6f}_L{loss:.6f}_{socket.gethostname()}.tsv", )
+        workbook.close()
+
+        os.rename(self.TMP_FNAME + ".tsv", f"introspection/introspection"
+        f"_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}_{socket.gethostname()}.tsv", )
+        os.rename(self.TMP_FNAME + ".xlsx", f"introspection/introspection"
+        f"_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}_{socket.gethostname()}.xlsx", )
 
     RESULT_HEADER = ["Correct",
                      "data_id",
@@ -286,8 +330,15 @@ class BERT_Framework(Base_Framework):
                      "Processed_Text"]
 
     def init_result_logging(self):
-        self.TMP_FNAME = f"introspection/TMP_introspection_{str(self.__class__)}_{socket.gethostname()}.tsv"
-        csvf = open(self.TMP_FNAME, mode="w")
+        self.TMP_FNAME = f"introspection/fulltext_{get_timestamp()}_{socket.gethostname()}"
+        csvf = open(f"{self.TMP_FNAME}.tsv", mode="w")
         writer = csv.writer(csvf, delimiter='\t')
-        writer.writerow(self.__class__.RESULT_HEADER)
-        return csvf, writer
+        writer.writerow(Text_Framework.RESULT_HEADER)
+        global row
+        row = 0
+        workbook = xlsxwriter.Workbook(f"{self.TMP_FNAME}.xlsx")
+        worksheet = workbook.add_worksheet()
+        for col in range(len(Text_Framework.RESULT_HEADER)):
+            worksheet.write(row, col, Text_Framework.RESULT_HEADER[col])
+        row += 1
+        return csvf, workbook, worksheet, writer

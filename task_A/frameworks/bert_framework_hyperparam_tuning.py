@@ -3,22 +3,25 @@ import json
 import logging
 import math
 import os
+import random
 import socket
 import time
 from collections import Counter, defaultdict
 
 import torch
 import torch.nn.functional as F
+# from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 from pytorch_pretrained_bert import BertAdam, BertTokenizer
 from sklearn import metrics
 from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
+from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
-from utils import count_parameters, get_timestamp
+from utils import count_parameters
+from utils import get_timestamp
 
 map_stance_label_to_s = {
     0: "support",
@@ -29,10 +32,10 @@ map_stance_label_to_s = {
 map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 
 
-class BERT_Framework(Base_Framework):
+class BERT_Framework_Hyperparamopt(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
-        self.save_treshold = 0.52
+        self.save_treshold = 0.529
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
@@ -101,28 +104,30 @@ class BERT_Framework(Base_Framework):
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset_BERTTriplets_with_Tags.prepare_fields_for_text()
-        train_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["train_data"], fields, self.tokenizer,
-                                                                  max_length=config["hyperparameters"]["max_length"])
-        dev_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["dev_data"], fields, self.tokenizer,
-                                                                max_length=config["hyperparameters"]["max_length"])
+        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
+        train_data = RumourEval2019Dataset_BERTTriplets(config["train_data"], fields, self.tokenizer,
+                                                        max_length=config["hyperparameters"]["max_length"])
+        dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,
+                                                      max_length=config["hyperparameters"]["max_length"])
 
         # torch.manual_seed(5246727901370826861 & ((1 << 63) - 1))
         # torch.manual_seed(40)
 
         # 84.1077
 
-
-
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
 
-        create_iter = lambda data: BucketIterator(data, #sort_key=lambda x: -len(x.text), sort=True,
-                                                  shuffle=True,
-                                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-                                                  device=device)
-        train_iter = create_iter(train_data)
-        dev_iter = create_iter(dev_data)
+        train_iter = BucketIterator(train_data,  sort_key=lambda x: -len(x.text), sort=True,
+                                    shuffle=True,
+                                    batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                    device=device)
+        dev_iter = BucketIterator(dev_data, sort_key=lambda x: -len(x.text), sort=True,
+                                  # shuffle=True,
+                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                  device=device)
+        # train_iter = create_iter(train_data)
+        # dev_iter = create_iter(dev_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
@@ -130,75 +135,181 @@ class BERT_Framework(Base_Framework):
         # bert-large-uncased,
         # bert-base-multilingual-cased
         # pretrained_model = torch.load(
-        #     "saved/dev/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_F1_0.53206_2019-01-16_18:28.pt").to(
+        #     "saved/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_ACC_0.83704_2019-01-10_12:14.pt").to(
         #     device)
         # model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
         #                                   state_dict=pretrained_model.state_dict()
         #                                   ).to(device)
         # pretrained_model = None
+
+        # ~ 32 mins per one training
+        # search_space = {"learning_rate": hp.choice("learning_rate", [1e-06, 5e-06, 1e-05, 5e-5, 5e-7]),
+        #                 "true_batch_size": hp.choice("true_batch_size", [8, 16, 32, 64]),
+        #                 "max_length": hp.choice("max_length", [50, 100, 150, 180, 200, 250, 512]),
+        #                 "hidden_dropout_prob": hp.choice("hidden_dropout_prob", [0., 0.1, 0.3, 0.4, 0.5])
+        #                 }
+        #
+        #
+        # trials = Trials()
+        # ntrials = 50
+        # global counter
+        # counter = 0
+        # def obj(params):
+        #     global counter
+        #     print(f"called {counter}")
+        #     counter+=1
+        #     output = {'loss': random.uniform(0.5, 99), 'status': STATUS_OK}
+        #     return output
+        #
+        # best = fmin(obj,
+        #             space=search_space,
+        #             algo=tpe.suggest,
+        #             max_evals=ntrials,
+        #             trials=trials)
+        # logging.info(best)
+        # bp = trials.best_trial['result']['Params']
+        #
+        # try:
+        #     f = open('output/trials_BERT.txt', "wb")
+        #     pickle.dump(trials, f)
+        #     f.close()
+        #
+        #     filename = 'output/bestparams_BERT.txt'
+        #     f = open(filename, "wb")
+        #     pickle.dump(bp, f)
+        #     f.close()
+        # except Exception as e:
+        #     logging.error("An exception caused params were not saved!")
+        #     logging.error(e)
+        #
+        hyperparamopt = False
+        if not hyperparamopt:
+            for i in range(200):
+                torch.manual_seed(random.randint(1, 1e8))
+                self.run_training(config, dev_iter, device, modelfunc, train_data, train_iter)
+        else:
+            params = {"learning_rate": [1e-06, 5e-06, 1e-05, 5e-5, 5e-7],
+                      "true_batch_size": [8, 16, 32, 64],
+                      "max_length": [50, 100, 150, 180, 200, 250, 512],
+                      "hidden_dropout_prob": [0., 0.1, 0.3, 0.4, 0.5]}
+            trials = 6
+
+            parameter_to_optimize = "learning_rate"
+            logging.info(f"Optimizing {parameter_to_optimize}")
+
+            def test():
+                best_F = random.uniform(0.5, 99)
+                best_loss = random.uniform(0.5, 99)
+                F = best_F / 2
+                loss = best_loss / 2
+                return {
+                    "best_loss": best_loss,
+                    "best_F1": best_F,
+                    "bestF1_loss": loss,
+                    "bestloss_F1": F
+                }
+
+            results = []
+            for par in params[parameter_to_optimize]:
+                config["hyperparameters"][parameter_to_optimize] = par
+                logging.info(f"{parameter_to_optimize}:{par}")
+                for i in range(trials):
+                    torch.manual_seed(random.randint(1, 1e6))
+                    results.append(self.run_training(config, dev_iter, device, modelfunc, train_data, train_iter))
+                    # results.append(test())
+            logging.info("Results:")
+            for pari, par in enumerate(params[parameter_to_optimize]):
+                logging.info(f"{parameter_to_optimize}:{par}")
+                for i in range(trials):
+                    logging.info(json.dumps(results[pari * trials + i]))
+
+                logging.info("*" * 20 + "AVG" + "*" * 20)
+                avg = Counter(results[0])
+                for i in range(1, trials): avg += Counter(results[i])
+                for key in avg:
+                    avg[key] /= trials
+                logging.info(json.dumps(avg))
+                logging.info("*" * 20 + "AVG ends" + "*" * 20)
+
+    def run_training(self, config, dev_iter, device, modelfunc, train_data, train_iter):
+        logger = logging.getLogger()
+        logger.disabled = True
+
+        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
+                                                       do_lower_case=True)
         model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache").to(device)
+        weights = SelfAtt_BertTokenizing_Framework.get_class_weights(train_data.examples, "stance_label", 4,
+                                                                     min_fraction=1)
+        logger.disabled = False
+        model.reinit(config)
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
-                             # t_total = 1000,warmup=0.5,
                              lr=config["hyperparameters"]["learning_rate"])
-
-        # No BERT training
-        # optimizer = BertAdam([p[1]
-        #                       for p in model.named_parameters()
-        #                       if p[1].requires_grad and not p[0].startswith("bert.")],
-        #                      lr=config["hyperparameters"]["learning_rate"])
-        #lossfunction = torch.nn.CrossEntropyLoss()
-
-        weights = SelfAtt_BertTokenizing_Framework.get_class_weights(train_data.examples, "stance_label", 4, min_fraction=1)
-
-        logging.info("class weights")
-        logging.info(f"{str(weights.numpy().tolist())}")
         lossfunction = torch.nn.CrossEntropyLoss(weight=weights.to(device))
+        best_val_loss = math.inf
+        best_val_acc = 0
+        best_val_F1 = 0
+        best_F1_loss, best_loss_F1 = 0, 0
         start_time = time.time()
         try:
-            best_val_loss = math.inf
-            best_val_acc = 0
-            best_val_F1 = 0
 
-            self.predict("answer_BERTF1_textonly.json", model, dev_iter)
+            # self.predict("answer_BERT_textnsource.json", model, dev_iter)
+            best_val_los_epoch = -1
+            early_stop_after = 4  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                #self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                log_results = epoch > 5
-                train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config, log_results=False)
-                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction, dev_iter,
-                                                                                   config, log_results=log_results)
-                sorted_val_acc_pl = sorted(val_acc_per_level.items(), key=lambda x: int(x[0]))
+                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
+                                                                   log_results=False)
+                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction,
+                                                                                           dev_iter,
+                                                                                           config, log_results=False)
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
+                    best_val_los_epoch = epoch
+                    best_loss_F1 = val_F1
+                    if val_F1 > self.save_treshold:
+                        # Map to CPU before saving, because this requires additional memory /for some reason/
+                        model.to(torch.device("cpu"))
+                        torch.save(model,
+                                   f"saved/checkpoint_{str(self.__class__)}_F1"
+                                   f"_{val_F1:.5f}_L_{validation_loss}_{get_timestamp()}_{socket.gethostname()}.pt")
+                        model.to(device)
+
                 if validation_acc > best_val_acc:
                     best_val_acc = validation_acc
+
                 if val_F1 > best_val_F1:
                     best_val_F1 = val_F1
+                    best_F1_loss = validation_loss
 
-                logging.info(
-                    f"Epoch {epoch}, Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
+                    if val_F1 > self.save_treshold:
+                        # Map to CPU before saving, because this requires additional memory /for some reason/
+                        model.to(torch.device("cpu"))
+                        torch.save(model,
+                                   f"saved/checkpoint_{str(self.__class__)}_F1"
+                                   f"_{val_F1:.5f}_L_{validation_loss}_{get_timestamp()}_{socket.gethostname()}.pt")
+                        model.to(device)
+
                 logging.info(
                     f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
                     f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})")
 
-                logging.debug(
-                    f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
-                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})")
-
-                logging.debug("\n".join([f"{k} - {v:.2f}" for k, v in sorted_val_acc_pl]))
-                if val_F1 > self.save_treshold:
-                    # Map to CPU before saving, because this requires additional memory /for some reason/
-                    model.to(torch.device("cpu"))
-                    torch.save(model,
-                               f"saved/checkpoint_{str(self.__class__)}_F1_{val_F1:.5f}_{get_timestamp()}.pt")
-                    model.to(device)
+                if validation_loss > best_val_loss and epoch > best_val_los_epoch + early_stop_after:
+                    logging.info("Early stopping...")
+                    break
         except KeyboardInterrupt:
             logging.info('-' * 120)
             logging.info('Exit from training early.')
         finally:
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+        return {
+            "best_loss": best_val_loss,
+            "best_F1": best_val_F1,
+            "bestF1_loss": best_F1_loss,
+            "bestloss_F1": best_loss_F1
+        }
 
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
                  log_results=True):

@@ -1,8 +1,10 @@
 import logging
+import torch
 
 from pytorch_pretrained_bert import BertModel
 from pytorch_pretrained_bert.modeling import PreTrainedBertModel
 from torch import nn
+import torch.nn.functional as F
 
 
 def dump_batch_contents(batch):
@@ -12,7 +14,7 @@ def dump_batch_contents(batch):
         logging.debug(f"L:{len(batch.text[i])} T: {batch.raw_text[i]}")
 
 
-class BertModelForStanceClassification(PreTrainedBertModel):
+class BertModelForVeracityClassification(PreTrainedBertModel):
     """
         `input_ids`: a torch.LongTensor of shape [batch_siz, sequence_length]
         `token_type_ids`: an optional torch.LongTensor of shape [batch_size, sequence_length]
@@ -26,45 +28,25 @@ class BertModelForStanceClassification(PreTrainedBertModel):
     """
 
     def __init__(self, config, classes=4):
-        super(BertModelForStanceClassification, self).__init__(config)
+        super(BertModelForVeracityClassification, self).__init__(config)
         self.bert = BertModel(config)
-        # hack token type embeddings
-        # self.bert.embeddings.token_type_embeddings = torch.nn.Embedding(3,768)
-
-        # self.bertout_layer = nn.Linear(config.hidden_size, config.hidden_size)
-        # self.hidden_layer = nn.Linear(config.hidden_size, config.hidden_size+20)
-        # self.last_layer = nn.Linear(config.hidden_size+50, classes)
-        self.last_layer = nn.Linear(config.hidden_size, classes)
-        self.apply(self.init_bert_weights)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def reinit(self, config):
-        self.dropout = nn.Dropout(config["hyperparameters"]["hidden_dropout_prob"])
+        # self.bertout_layer = nn.Linear(config.hidden_size, config.hidden_size)
+        # self.hidden_layer = nn.Linear(config.hidden_size+1, config.hidden_size+50)
+        # self.last_layer = nn.Linear(config.hidden_size+50, classes)
+        self.last_layer_veracity = nn.Linear(config.hidden_size, 3)
+        self.apply(self.init_bert_weights)
+        self.max_batch_len = 0
 
     def forward(self, batch):
-        # if hasattr(batch, "ner_mask"):
-        #     _, pooled_output = self.bert(batch.text, batch.type_mask, batch.ner_mask, batch.dep_mask, batch.pos_mask,
-        #                                  None,
-        #                                  output_all_encoded_layers=False)
-        # else:
-        _, pooled_output = self.bert(batch.text, batch.type_mask, batch.input_mask,
-                                     output_all_encoded_layers=False)
+        _, pooled_output = self.bert(batch.text, batch.type_mask, None, output_all_encoded_layers=False)
         pooled_output = self.dropout(pooled_output)
-        # source_feature =  batch.issource.float().unsqueeze(-1)
-        # sentiment_features =  [batch.sentiment_pos.float().unsqueeze(-1),
-        #                        batch.sentiment_neu.float().unsqueeze(-1),
-        #                        batch.sentiment_neg.float().unsqueeze(-1)]
-
-        # fs = [source_feature] + sentiment_features
-        # features = torch.cat(
-        #     fs, dim=-1)
-
-        # pooled_output_with_src = torch.cat((pooled_output,features), -1)
         # transformed_outp = F.relu(self.dropout(self.bertout_layer(pooled_output)))
         #
         # inp_with_f = torch.cat((transformed_outp,batch.issource.float().unsqueeze(-1)),1)
-        # outp_with_f = F.relu(self.dropout(self.hidden_layer(pooled_output)))
+        # outp_with_f = F.relu(self.dropout(self.hidden_layer(inp_with_f)))
         # logits =  self.last_layer(outp_with_f)
-        logits = self.last_layer(pooled_output)
+        veracity_logits = self.last_layer_veracity(pooled_output)
 
-        return logits
+        return veracity_logits

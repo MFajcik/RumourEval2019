@@ -20,7 +20,7 @@ def listdir_nohidden(path):
     return new_contents
 
 
-def load_test_data_reddit(path = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/dummy_test_data/reddit-english"):
+def load_test_data_reddit(path = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/rumoureval-2019-test-data/reddit-test-data"):
 
     conversation_ids = listdir_nohidden(path)
     conversations = {}

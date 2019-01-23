@@ -15,7 +15,7 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
+from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.bert_framework import map_stance_label_to_s
 from utils import count_parameters, get_timestamp
@@ -69,13 +69,13 @@ class BERT_Framework_with_f(Base_Framework):
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_f_and_text()
-        train_data = RumourEval2019Dataset_BERTTriplets(config["train_data"], fields, self.tokenizer,
-                                                        max_length=config["hyperparameters"]["max_length"],
-                                                        include_features=True)
-        dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,
-                                                      max_length=config["hyperparameters"]["max_length"],
-                                                      include_features=True)
+        fields = RumourEval2019Dataset_BERTTriplets_with_Tags.prepare_fields_for_f_and_text()
+        train_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["train_data"], fields, self.tokenizer,
+                                                                  max_length=config["hyperparameters"]["max_length"],
+                                                                  include_features=True)
+        dev_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["dev_data"], fields, self.tokenizer,
+                                                                max_length=config["hyperparameters"]["max_length"],
+                                                                include_features=True)
 
         # torch.manual_seed(1570055016034928672 & ((1 << 63) - 1))
         # torch.manual_seed(40)
