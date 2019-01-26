@@ -3,20 +3,25 @@ import json
 import logging
 import os
 import socket
+import sys
 import time
 from collections import Counter, defaultdict
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-from pytorch_pretrained_bert import BertTokenizer
+from pytorch_pretrained_bert import BertTokenizer, BertAdam
 from sklearn import metrics
 from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
+from modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
+from task_A.frameworks.load_eval import load_and_eval
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
+from task_A.models.secondary_cls import SecondaryCls
 
 map_stance_label_to_s = {
     0: "support",
@@ -26,12 +31,39 @@ map_stance_label_to_s = {
 }
 map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 
+# average predictions
+# 0.5604509658482322
+
+# average logits
+# 0.5553973038819165 # logit avg
+
+# logistic regression on logits
+# 0.5473578435835631
+
+# lr on probs did not worked better either
+
+# Fixed zeros!
+# restrained LR (just identity matrices with 4 coeficents)
+# they behave better!
+# 0.5700931074179761
+
+
+# [3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832
+# 0.713499|0.7488.22|0.538256
+#
+print(load_and_eval(torch.nn.CrossEntropyLoss(
+    weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda())))
+sys.exit()
 
 class Ensemble_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
-        self.save_treshold = 0.52
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
+        model = self.create_l2_optim(config, torch.nn.CrossEntropyLoss(
+            weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()))
+
+        self.save_treshold = 999
+        self.modeltype = "bert-base-uncased"
+        self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
     def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
@@ -96,6 +128,73 @@ class Ensemble_Framework(Base_Framework):
             model.train()
         logging.info(f"Writing results into {fname}")
 
+    def create_l2_optim(self, config, lossfunction):
+
+        model = SecondaryCls(config).cuda()
+        best_F1 = 0
+        glorot_param_init(model)
+        optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
+                             lr=config["hyperparameters"]["learning_rate"], weight_decay=0.02)
+        files = sorted(os.listdir("saved/ensemble/numpy"))
+
+        valid = [f for f in files if f.startswith("train_") and f.endswith("npy")]
+        result_files = [f for f in valid if "results" in f]
+        print(result_files)
+        label_file = [f for f in valid if "labels" in f][0]
+        labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
+        result_matrices = [np.load(os.path.join("saved/ensemble/numpy", result_file)) for result_file in result_files]
+        results = np.array(result_matrices)
+        # experiment 2, try softmaxing logits first
+        results = torch.Tensor(results)
+        results = F.softmax(results, -1).numpy()
+        results = torch.Tensor(np.concatenate(results, -1)).cuda()
+
+        # experiment 1, traing LR on logits
+        # results = np.concatenate(results, -1)
+        # results = torch.Tensor(results).cuda()
+        labels = torch.Tensor(labels).cuda().long()
+
+        valid = [f for f in files if f.startswith("val_") and f.endswith("npy")]
+        result_files = [f for f in valid if "results" in f]
+        print(result_files)
+        label_file = [f for f in valid if "labels" in f][0]
+        dev_labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
+        dev_results = np.array(
+            [np.load(os.path.join("saved/ensemble/numpy", result_file)) for result_file in result_files])
+
+        dev_results = torch.Tensor(dev_results)
+        dev_results = F.softmax(dev_results, -1).numpy()
+        dev_results = torch.Tensor(np.concatenate(dev_results, -1)).cuda()
+        # dev_results = np.concatenate(dev_results, -1)
+        # dev_results = torch.Tensor(dev_results).cuda()
+
+        dev_labels = torch.Tensor(dev_labels).cuda().long()
+        total_labels = list(dev_labels.cpu().numpy())
+
+        best_a = None
+        for i in range(1000000):
+            pred_logits = model(results)
+            loss = lossfunction(pred_logits, labels)
+            # loss.backward()
+            # optimizer.step()
+            # optimizer.zero_grad()
+
+            dev_pred_logits = model(dev_results)
+            dev_loss = lossfunction(dev_pred_logits, dev_labels)
+            maxpreds, argmaxpreds = torch.max(F.softmax(dev_pred_logits, -1), dim=1)
+            total_preds = list(argmaxpreds.cpu().numpy())
+            correct_vec = argmaxpreds == dev_labels
+            total_correct = torch.sum(correct_vec).item()
+            loss, acc = dev_loss, total_correct / results.shape[0]
+            F1 = metrics.f1_score(total_labels, total_preds, average="macro")
+            if F1 > best_F1:
+                best_F1 = F1
+                best_a = model.a.cpu().detach().numpy()
+            logging.info(
+                f"Validation loss|acc|F1|BEST: {loss:.6f}|{acc:.6f}|{F1:.6f} || {best_F1} || {best_a}")
+
+        return model
+
     def train(self, modelfunc):
         config = self.config
 
@@ -110,19 +209,18 @@ class Ensemble_Framework(Base_Framework):
         # torch.manual_seed(5246727901370826861 & ((1 << 63) - 1))
         # torch.manual_seed(40)
 
-
-        device = torch.device("cpu")
-        # device = torch.device("cuda:0" if config['cuda'] and
-        #                                  torch.cuda.is_available() else "cpu")
+        # device = torch.device("cpu")
+        device = torch.device("cuda:0" if config['cuda'] and
+                                          torch.cuda.is_available() else "cpu")
 
         create_iter = lambda data: BucketIterator(data, sort_key=lambda x: -len(x.text), sort=True,
-                                                  batch_size=1,
+                                                  batch_size=config["hyperparameters"]["batch_size"],
                                                   repeat=False,
                                                   device=device)
 
-        # train_iter = BucketIterator(train_data, shuffle=True,
-        #                             batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-        #                             device=device)
+        train_iter = BucketIterator(train_data, sort_key=lambda x: -len(x.text), sort=True,
+                                    batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                    device=device)
         dev_iter = create_iter(dev_data)
         test_iter = create_iter(test_data)
 
@@ -134,6 +232,7 @@ class Ensemble_Framework(Base_Framework):
         # bert-base-multilingual-cased
         checkpoints = os.listdir("saved/ensemble/")
         modelpaths = [f"saved/ensemble/{ch}" for ch in checkpoints if ch.endswith(".pt")]
+        logging.info(f"Running ensemble of {len(modelpaths)} models")
         # modelpaths = [
         #     "saved/ensemble/checkpoint_<class 'task_A.frameworks.bert_framework."
         #     "BERT_Framework'>_F1_0.53206_2019-01-21_01:28.pt",
@@ -152,46 +251,179 @@ class Ensemble_Framework(Base_Framework):
         logging.info(f"{str(weights.numpy().tolist())}")
         lossfunction = torch.nn.CrossEntropyLoss(weight=weights.to(device))  # .to(device))
 
-        for modelpath in modelpaths:
-            pretrained_model = torch.load(
-                modelpath)
-            model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
-                                              state_dict=pretrained_model.state_dict()
-                                              ).to(device)
-            model.dropout = pretrained_model.dropout
-            models.append(model)
+        soft_ensemble = False
+        build_predictions = True
+        check_f1s = False
+        eval_from_npy = False
+        train_logreg = False
+        if train_logreg:
+            start_time = time.time()
+            try:
+                model = self.create_l2_optim(config, lossfunction)
+            except KeyboardInterrupt:
+                logging.info('-' * 120)
+                logging.info('Exit from training early.')
 
-        # pretrained_model = None
+            finally:
+                logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+        elif eval_from_npy:
+            start_time = time.time()
+            try:
+                load_and_eval(lossfunction)
+            except KeyboardInterrupt:
+                logging.info('-' * 120)
+                logging.info('Exit from training early.')
+            finally:
+                logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+        elif build_predictions:
+            start_time = time.time()
+            try:
 
-        start_time = time.time()
-        try:
-            # best_val_loss = math.inf
-            # best_val_acc = 0
-            # best_val_F1 = 0
-            # for idx, model in enumerate(models):
-            #     logging.info(f"Model: {checkpoints[idx]}")
-            # self.predict(f"answer_BERTF1_textonly_{idx}.json", model, dev_iter)
-            # train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
-            #                                                   log_results=False)
-            # validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction,
-            #                                                                            dev_iter,
-            #                                                                            config, log_results=False)
-            #
-            # # logging.info(
-            # #     f"Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
-            # logging.info(
-            #     f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
+                for idx, model_path in enumerate(modelpaths):
+                    pretrained_model = torch.load(
+                        model_path)
+                    model = modelfunc.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
+                                                      state_dict=pretrained_model.state_dict()
+                                                      ).to(device)
+                    model.dropout = pretrained_model.dropout
+                    logging.info("MODEL: " + model_path)
+                    train_loss, train_acc, _, train_F1 = self.build_results(idx, model,
+                                                                            lossfunction,
+                                                                            train_iter,
+                                                                            config,
+                                                                            prefix="train_")
+                    validation_loss, validation_acc, val_acc_per_level, val_F1 = self.build_results(idx, model,
+                                                                                                    lossfunction,
+                                                                                                    dev_iter,
+                                                                                                    config,
+                                                                                                    prefix="val_")
+                    # logging.info(
+                    #     f"Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
+                    logging.info(
+                        f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
+            except KeyboardInterrupt:
+                logging.info('-' * 120)
+                logging.info('Exit from training early.')
+            finally:
+                logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+        elif soft_ensemble:
+            start_time = time.time()
+            try:
+                for modelpath in modelpaths:
+                    pretrained_model = torch.load(
+                        modelpath)
+                    model = modelfunc.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
+                                                      state_dict=pretrained_model.state_dict()
+                                                      ).to(device)
+                    model.dropout = pretrained_model.dropout
+                    models.append(model)
 
-            validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate_models(models, lossfunction,
-                                                                                              dev_iter,
-                                                                                              config, log_results=False)
-            logging.info(
-                f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
-        except KeyboardInterrupt:
-            logging.info('-' * 120)
-            logging.info('Exit from training early.')
-        finally:
-            logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate_models(models,
+                                                                                                  lossfunction,
+                                                                                                  dev_iter,
+                                                                                                  config,
+                                                                                                  log_results=False)
+                logging.info(
+                    f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
+            except KeyboardInterrupt:
+                logging.info('-' * 120)
+                logging.info('Exit from training early.')
+            finally:
+                logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+
+        elif check_f1s:
+            # pretrained_model = None
+            start_time = time.time()
+            try:
+                for idx, modelpath in enumerate(modelpaths):
+                    pretrained_model = torch.load(
+                        modelpath)
+                    model = modelfunc.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
+                                                      state_dict=pretrained_model.state_dict()
+                                                      ).to(device)
+                    model.dropout = pretrained_model.dropout
+                    logging.info(f"Model: {checkpoints[idx]}")
+                    # self.predict(f"answer_BERTF1_textonly_{idx}.json", model, dev_iter)
+                    # train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
+                    #                                                    log_results=False)
+                    validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction,
+                                                                                               dev_iter,
+                                                                                               config,
+                                                                                               log_results=False)
+
+                    # logging.info(
+                    #     f"Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
+                    logging.info(
+                        f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
+
+            except KeyboardInterrupt:
+                logging.info('-' * 120)
+                logging.info('Exit from training early.')
+            finally:
+                logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+
+    def build_results(self, k, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict,
+                      prefix="val_", verbose=False):
+        if not os.path.exists("saved/ensemble/numpy/"):
+            os.makedirs("saved/ensemble/numpy/")
+        train_flag = model.training
+        model.eval()
+
+        total_examples = len(dev_iter.data())
+
+        results = np.zeros((total_examples, 4))
+
+        total_batches = len(dev_iter.data()) // dev_iter.batch_size
+        if verbose:
+            pbar = tqdm(total=total_batches)
+        examples_so_far = 0
+        dev_loss = 0
+        total_correct = 0
+        total_correct_per_level = Counter()
+        total_per_level = defaultdict(lambda: 0)
+        total_labels = []
+        total_preds = []
+        ids = []
+        for idx, batch in enumerate(dev_iter):
+            pred_logits = model(batch)
+
+            numpy_logits = pred_logits.cpu().detach().numpy()  # bsz x classes
+            step_size = numpy_logits.shape[0]
+            write_index = idx * dev_iter.batch_size
+            results[write_index: write_index + step_size] = numpy_logits
+            ids += batch.tweet_id
+
+            loss = lossfunction(pred_logits, batch.stance_label)
+            branch_levels = [id.split(".", 1)[-1] for id in batch.branch_id]
+            for branch_depth in branch_levels: total_per_level[branch_depth] += 1
+            correct, correct_per_level = self.calculate_correct(pred_logits, batch.stance_label, levels=branch_levels)
+            total_correct += correct
+            total_correct_per_level += correct_per_level
+
+            examples_so_far += len(batch.stance_label)
+            dev_loss += loss.item()
+            if verbose:
+                pbar.set_description(
+                    f"dev loss: {dev_loss / (idx + 1):.4f}, dev acc: {total_correct / examples_so_far:.4f}")
+                pbar.update(1)
+
+            maxpreds, argmaxpreds = torch.max(F.softmax(pred_logits, -1), dim=1)
+            total_preds += list(argmaxpreds.cpu().numpy())
+            total_labels += list(batch.stance_label.cpu().numpy())
+
+        np.save(f"saved/ensemble/numpy/{prefix}results_{k}.npy", results)
+        if k == 0:
+            np.save(f"saved/ensemble/numpy/{prefix}labels.npy", np.array(total_labels))
+            with open(f"saved/ensemble/numpy/{prefix}ids.txt", "w") as f:
+                f.write('\n'.join(ids))
+
+        loss, acc = dev_loss / total_batches, total_correct / examples_so_far
+        total_acc_per_level = {depth: total_correct_per_level.get(depth, 0) / total for depth, total in
+                               total_per_level.items()}
+        F1 = metrics.f1_score(total_labels, total_preds, average="macro")
+        if train_flag:
+            model.train()
+        return loss, acc, total_acc_per_level, F1
 
     def validate_models(self, models, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=True,
                         log_results=True):

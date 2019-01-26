@@ -10,8 +10,8 @@ from keras.utils.np_utils import to_categorical
 from sklearn.metrics import f1_score
 
 # %%
-from official_basline.LSTM_models import LSTM_model_stance, LSTM_model_veracity
-from official_basline.branch2treelabels import branch2treelabels
+from official_baseline.LSTM_models import LSTM_model_stance, LSTM_model_veracity
+from official_baseline.branch2treelabels import branch2treelabels
 
 
 def objective_function_stance_branchLSTM_RumEv(params):

@@ -1,5 +1,9 @@
 
 ##Notes:
+
+Extremna senzitivita na hyperparametre:
+s LR 5e-5 sa to nic nenauci     
+
 Skusal som pridat aj pos-ner tagy
 problem s maskovanim paddingu
 zda sa ze trenovanie modelov z shuffle funguje horsie nez trenovanie modelov bez shufflovania

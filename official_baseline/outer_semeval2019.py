@@ -7,9 +7,9 @@ Outer file for semeval 2019 baseline
 import json
 
 # %%
-from official_basline.objective_functions import objective_function_stance_branchLSTM_RumEv, \
+from official_baseline.objective_functions import objective_function_stance_branchLSTM_RumEv, \
     objective_function_veracity_branchLSTM_RumEv
-from official_basline.parameter_search import parameter_search
+from official_baseline.parameter_search import parameter_search
 
 
 def labell2strA(label):
