@@ -3,11 +3,12 @@
   "nonactive": "BERT_textonly",
   "models": {
     "ensemble": {
+      "modeltype": "bert-large-uncased",
       "hyperparameters": {
-        "batch_size": 8,
-        "max_length": 180,
-        "learning_rate": 6e-3,
-        "2cls_inp_size": 16
+        "batch_size": 2,
+        "max_length": 200,
+        "learning_rate": 8e-4,
+        "ensemble_models": 100
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json",
@@ -156,7 +157,7 @@
     },
     "BERT_textonly": {
       "hyperparameters": {
-        "learning_rate": 1e-06,
+        "learning_rate": 1.5e-06,
         "batch_size": 2,
         "true_batch_size": 32,
         "max_length": 200,

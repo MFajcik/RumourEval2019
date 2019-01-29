@@ -1,11 +1,10 @@
 import csv
-import json
 import logging
 import os
 import socket
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, Iterator
 
 import numpy as np
 import torch
@@ -13,13 +12,13 @@ import torch.nn.functional as F
 from pytorch_pretrained_bert import BertTokenizer, BertAdam
 from sklearn import metrics
 from torch.nn.modules.loss import _Loss
-from torchtext.data import BucketIterator, Iterator
+from torchtext.data import BucketIterator
 from tqdm import tqdm
 
 from modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
-from task_A.frameworks.load_eval import load_and_eval
+from task_A.frameworks.ensemble_helper import load_and_eval
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
 from task_A.models.secondary_cls import SecondaryCls
 
@@ -30,6 +29,7 @@ map_stance_label_to_s = {
     3: "query"
 }
 map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
+
 
 # average predictions
 # 0.5604509658482322
@@ -50,96 +50,28 @@ map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 
 # [3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832
 # 0.713499|0.7488.22|0.538256
-#
-print(load_and_eval(torch.nn.CrossEntropyLoss(
-    weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda())))
-sys.exit()
+
 
 class Ensemble_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
-        model = self.create_l2_optim(config, torch.nn.CrossEntropyLoss(
-            weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()))
+        # self.create_l2_optim(config, torch.nn.CrossEntropyLoss(
+        #     weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()))
+        #
+        # sys.exit()
 
         self.save_treshold = 999
-        self.modeltype = "bert-base-uncased"
+        self.modeltype = config["modeltype"]
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
-        total_batches = len(train_iter.data()) // train_iter.batch_size
-        if verbose:
-            pbar = tqdm(total=total_batches)
-        examples_so_far = 0
-        train_loss = 0
-        total_correct = 0
-
-        update_ratio = config["hyperparameters"]["true_batch_size"] // config["hyperparameters"]["batch_size"]
-        optimizer.zero_grad()
-        updated = False
-        for i, batch in enumerate(train_iter):
-            updated = False
-            pred_logits = model(batch)
-
-            loss = lossfunction(pred_logits, batch.stance_label) / update_ratio
-            loss.backward()
-
-            if (i + 1) % update_ratio == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-                updated = True
-
-            total_correct += self.calculate_correct(pred_logits, batch.stance_label)
-            examples_so_far += len(batch.stance_label)
-            train_loss += loss.item()
-            if verbose:
-                pbar.set_description(
-                    f"train loss:"
-                    f" {train_loss / (i + 1):.4f}, train acc: {total_correct / examples_so_far:.4f}")
-                pbar.update(1)
-
-        if not updated:
-            optimizer.step()
-            optimizer.zero_grad()
-
-        return train_loss / total_batches, total_correct / examples_so_far
-
-    def predict(self, fname: str, model: torch.nn.Module, dev_iter: Iterator, task="subtaskaenglish"):
-        train_flag = model.training
-        model.eval()
-        answers = {"subtaskaenglish": dict(),
-                   "subtaskbenglish": dict(),
-                   "subtaskadanish": dict(),
-                   "subtaskbdanish": dict(),
-                   "subtaskarussian": dict(),
-                   "subtaskbrussian": dict()
-                   }
-        for i, batch in enumerate(dev_iter):
-            pred_logits = model(batch)
-            preds = torch.argmax(pred_logits, dim=1)
-            preds = list(preds.cpu().numpy())
-
-            for ix, p in enumerate(preds):
-                answers[task][batch.tweet_id[ix]] = map_stance_label_to_s[p.item()]
-
-        with open(fname, "w") as  answer_file:
-            json.dump(answers, answer_file)
-        if train_flag:
-            model.train()
-        logging.info(f"Writing results into {fname}")
-
     def create_l2_optim(self, config, lossfunction):
 
-        model = SecondaryCls(config).cuda()
-        best_F1 = 0
-        glorot_param_init(model)
-        optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
-                             lr=config["hyperparameters"]["learning_rate"], weight_decay=0.02)
         files = sorted(os.listdir("saved/ensemble/numpy"))
 
         valid = [f for f in files if f.startswith("train_") and f.endswith("npy")]
-        result_files = [f for f in valid if "results" in f]
-        print(result_files)
+        result_files = [f for f in valid if "result" in f]
+        logging.debug(result_files)
         label_file = [f for f in valid if "labels" in f][0]
         labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
         result_matrices = [np.load(os.path.join("saved/ensemble/numpy", result_file)) for result_file in result_files]
@@ -155,8 +87,8 @@ class Ensemble_Framework(Base_Framework):
         labels = torch.Tensor(labels).cuda().long()
 
         valid = [f for f in files if f.startswith("val_") and f.endswith("npy")]
-        result_files = [f for f in valid if "results" in f]
-        print(result_files)
+        result_files = [f for f in valid if "result" in f]
+        logging.debug(result_files)
         label_file = [f for f in valid if "labels" in f][0]
         dev_labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
         dev_results = np.array(
@@ -171,13 +103,39 @@ class Ensemble_Framework(Base_Framework):
         dev_labels = torch.Tensor(dev_labels).cuda().long()
         total_labels = list(dev_labels.cpu().numpy())
 
-        best_a = None
-        for i in range(1000000):
+        ens_best_F1 = 0
+        ens_best_distribution = None
+        l = torch.nn.CrossEntropyLoss(
+            weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda())
+        for k in tqdm(range(1000)):
+
+            F1, distribution = self.run_LR_training(config, dev_labels, dev_results, labels, lossfunction,
+                                                    results, total_labels)
+            if F1 > ens_best_F1:
+                _, _, e_f1 = load_and_eval(l,
+                                           weights=distribution
+                                           )
+                if e_f1 != F1:
+                    F1, distribution = self.run_LR_training(config, dev_labels, dev_results, labels, lossfunction,
+                                                            results, total_labels)
+                ens_best_F1 = F1
+                ens_best_distribution = distribution
+                logging.debug(f"New Best F1: {ens_best_F1}")
+                logging.debug(ens_best_distribution)
+
+    def run_LR_training(self, config, dev_labels, dev_results, labels, lossfunction, results, total_labels):
+        model = SecondaryCls(config).cuda()
+        glorot_param_init(model)
+        optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
+                             lr=config["hyperparameters"]["learning_rate"], weight_decay=0.02)
+        best_distribution = None
+        best_F1 = 0
+        for i in range(1000):
             pred_logits = model(results)
             loss = lossfunction(pred_logits, labels)
-            # loss.backward()
-            # optimizer.step()
-            # optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
 
             dev_pred_logits = model(dev_results)
             dev_loss = lossfunction(dev_pred_logits, dev_labels)
@@ -189,11 +147,11 @@ class Ensemble_Framework(Base_Framework):
             F1 = metrics.f1_score(total_labels, total_preds, average="macro")
             if F1 > best_F1:
                 best_F1 = F1
-                best_a = model.a.cpu().detach().numpy()
-            logging.info(
-                f"Validation loss|acc|F1|BEST: {loss:.6f}|{acc:.6f}|{F1:.6f} || {best_F1} || {best_a}")
+                best_distribution = F.softmax(model.a)
 
-        return model
+            # logging.info(
+            #     f"Validation loss|acc|F1|BEST: {loss:.6f}|{acc:.6f}|{F1:.6f} || {best_F1} || ")
+        return best_F1, best_distribution
 
     def train(self, modelfunc):
         config = self.config
@@ -231,7 +189,7 @@ class Ensemble_Framework(Base_Framework):
         # bert-large-uncased,
         # bert-base-multilingual-cased
         checkpoints = os.listdir("saved/ensemble/")
-        modelpaths = [f"saved/ensemble/{ch}" for ch in checkpoints if ch.endswith(".pt")]
+        modelpaths = sorted([f"saved/ensemble/{ch}" for ch in checkpoints if ch.endswith(".pt")])
         logging.info(f"Running ensemble of {len(modelpaths)} models")
         # modelpaths = [
         #     "saved/ensemble/checkpoint_<class 'task_A.frameworks.bert_framework."
@@ -287,20 +245,27 @@ class Ensemble_Framework(Base_Framework):
                                                       ).to(device)
                     model.dropout = pretrained_model.dropout
                     logging.info("MODEL: " + model_path)
-                    train_loss, train_acc, _, train_F1 = self.build_results(idx, model,
-                                                                            lossfunction,
-                                                                            train_iter,
-                                                                            config,
-                                                                            prefix="train_")
-                    validation_loss, validation_acc, val_acc_per_level, val_F1 = self.build_results(idx, model,
-                                                                                                    lossfunction,
-                                                                                                    dev_iter,
-                                                                                                    config,
-                                                                                                    prefix="val_")
+                    suffix = model_path[model_path.index("F1"):model_path.index(".pt")]
+                    # train_loss, train_acc, _, train_F1 = self.build_results(idx, model, suffix,
+                    #                                                         lossfunction,
+                    #                                                         train_iter,
+                    #                                                         config,
+                    #                                                         prefix="train_", )
+                    # validation_loss, validation_acc, val_acc_per_level, val_F1 = self.build_results(idx, model, suffix,
+                    #                                                                                 lossfunction,
+                    #                                                                                 dev_iter,
+                    #                                                                                 config,
+                    #                                                                                 prefix="val_")
+                    self.build_results(idx, model, suffix,
+                                       lossfunction,
+                                       test_iter,
+                                       config,
+                                       prefix="test_",
+                                       do_not_evaluate=True)
                     # logging.info(
                     #     f"Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
-                    logging.info(
-                        f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
+                    # logging.info(
+                    #     f"Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}")
             except KeyboardInterrupt:
                 logging.info('-' * 120)
                 logging.info('Exit from training early.')
@@ -362,8 +327,8 @@ class Ensemble_Framework(Base_Framework):
             finally:
                 logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
 
-    def build_results(self, k, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict,
-                      prefix="val_", verbose=False):
+    def build_results(self, k, model: torch.nn.Module, suffix, lossfunction: _Loss, dev_iter: Iterator, config: dict,
+                      prefix="val_", verbose=False, do_not_evaluate=False):
         if not os.path.exists("saved/ensemble/numpy/"):
             os.makedirs("saved/ensemble/numpy/")
         train_flag = model.training
@@ -393,36 +358,41 @@ class Ensemble_Framework(Base_Framework):
             results[write_index: write_index + step_size] = numpy_logits
             ids += batch.tweet_id
 
-            loss = lossfunction(pred_logits, batch.stance_label)
-            branch_levels = [id.split(".", 1)[-1] for id in batch.branch_id]
-            for branch_depth in branch_levels: total_per_level[branch_depth] += 1
-            correct, correct_per_level = self.calculate_correct(pred_logits, batch.stance_label, levels=branch_levels)
-            total_correct += correct
-            total_correct_per_level += correct_per_level
+            if not do_not_evaluate:
+                loss = lossfunction(pred_logits, batch.stance_label)
+                branch_levels = [id.split(".", 1)[-1] for id in batch.branch_id]
+                for branch_depth in branch_levels: total_per_level[branch_depth] += 1
+                correct, correct_per_level = self.calculate_correct(pred_logits, batch.stance_label,
+                                                                    levels=branch_levels)
+                total_correct += correct
+                total_correct_per_level += correct_per_level
 
-            examples_so_far += len(batch.stance_label)
-            dev_loss += loss.item()
+                examples_so_far += len(batch.stance_label)
+                dev_loss += loss.item()
+
+                maxpreds, argmaxpreds = torch.max(F.softmax(pred_logits, -1), dim=1)
+                total_preds += list(argmaxpreds.cpu().numpy())
+                total_labels += list(batch.stance_label.cpu().numpy())
+
             if verbose:
                 pbar.set_description(
                     f"dev loss: {dev_loss / (idx + 1):.4f}, dev acc: {total_correct / examples_so_far:.4f}")
                 pbar.update(1)
 
-            maxpreds, argmaxpreds = torch.max(F.softmax(pred_logits, -1), dim=1)
-            total_preds += list(argmaxpreds.cpu().numpy())
-            total_labels += list(batch.stance_label.cpu().numpy())
-
-        np.save(f"saved/ensemble/numpy/{prefix}results_{k}.npy", results)
+        if not do_not_evaluate:
+            loss, acc = dev_loss / total_batches, total_correct / examples_so_far
+            total_acc_per_level = {depth: total_correct_per_level.get(depth, 0) / total for depth, total in
+                                   total_per_level.items()}
+            F1 = metrics.f1_score(total_labels, total_preds, average="macro")
+        np.save(f"saved/ensemble/numpy/{prefix}result_{suffix}.npy", results)
         if k == 0:
             np.save(f"saved/ensemble/numpy/{prefix}labels.npy", np.array(total_labels))
             with open(f"saved/ensemble/numpy/{prefix}ids.txt", "w") as f:
                 f.write('\n'.join(ids))
-
-        loss, acc = dev_loss / total_batches, total_correct / examples_so_far
-        total_acc_per_level = {depth: total_correct_per_level.get(depth, 0) / total for depth, total in
-                               total_per_level.items()}
-        F1 = metrics.f1_score(total_labels, total_preds, average="macro")
         if train_flag:
             model.train()
+        if do_not_evaluate:
+            return
         return loss, acc, total_acc_per_level, F1
 
     def validate_models(self, models, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=True,

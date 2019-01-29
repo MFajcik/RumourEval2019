@@ -35,7 +35,7 @@ map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 class BERT_Framework_Hyperparamopt(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
-        self.save_treshold = 0.53
+        self.save_treshold = 0.55
         self.modeltype = "bert-large-uncased"
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
@@ -186,13 +186,14 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         #     logging.error("An exception caused params were not saved!")
         #     logging.error(e)
         #
-        hyperparamopt = True
-        parameter_to_optimize = "learning_rate"
-        self.saveruns = False
+        hyperparamopt = False
+        parameter_to_optimize = None  # "learning_rate"
+        self.saveruns = True
 
         if not hyperparamopt:
             for i in range(200):
                 torch.manual_seed(random.randint(1, 1e8))
+                # torch.manual_seed(593825)
                 self.run_training(config, dev_iter, device, modelfunc, train_data, train_iter)
         else:
             params = {"learning_rate": [9e-7, 8e-7, 7e-7, 2e-06, 1e-06],
@@ -576,7 +577,7 @@ class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
 
         ##FIXME: NOT HERE!!
         hyperparamopt = False
-        parameter_to_optimize = "true_batch_size"
+        parameter_to_optimize = None  ##"true_batch_size"
 
         if not hyperparamopt:
             for i in range(200):

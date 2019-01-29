@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import sys
-from _socket import gethostname
 
 from solutionsA import SolutionA
 from utils import setup_logging
@@ -25,7 +24,7 @@ if __name__ == "__main__":
     with open("configurations/config.json") as conffile:
         config = json.load(conffile)
     setup_logging(os.path.basename(sys.argv[0]).split(".")[0],
-                  extra_name= Experiment_Name,
+                  extra_name=Experiment_Name,
                   logpath="logs/",
                   config_path="configurations/logging.yml")
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

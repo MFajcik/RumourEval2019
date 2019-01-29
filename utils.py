@@ -32,7 +32,7 @@ def setup_logging(
 
     if not os.path.exists(os.path.dirname(logpath)):
         os.makedirs(os.path.dirname(logpath))
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     stamp = timestamp+ "_"+socket.gethostname() + "_" + extra_name
 
     path = config_path if config_path is not None else os.getenv(env_key, None)
