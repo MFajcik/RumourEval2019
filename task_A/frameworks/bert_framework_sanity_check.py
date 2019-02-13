@@ -1,41 +1,7 @@
-import csv
-import json
-import logging
-import math
-import os
-import random
-import socket
-import time
-from collections import Counter, defaultdict
-
-import torch
-import torch.nn.functional as F
-# from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
-from pytorch_pretrained_bert import BertAdam, BertTokenizer
-from sklearn import metrics
-from torch.nn.modules.loss import _Loss
-from torchtext.data import BucketIterator, Iterator
-from tqdm import tqdm
-
-from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
-from task_A.frameworks.base_framework import Base_Framework
-from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
-from utils import count_parameters
-from utils import get_timestamp
-
-map_stance_label_to_s = {
-    0: "support",
-    1: "comment",
-    2: "deny",
-    3: "query"
-}
-map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
-
-
-class BERT_Framework_Hyperparamopt(Base_Framework):
+class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
-        self.save_treshold = 0.55
+        self.save_treshold = 0.53
         self.modeltype = config["variant"]
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
@@ -108,10 +74,9 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
         train_data = RumourEval2019Dataset_BERTTriplets(config["train_data"], fields, self.tokenizer,
                                                         max_length=config["hyperparameters"]["max_length"])
+        train_data, sanity_check_data = train_data.split(split_ratio=0.9, stratified=True, strata_field='stance_label')
         dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,
                                                       max_length=config["hyperparameters"]["max_length"])
-        test_data = RumourEval2019Dataset_BERTTriplets(config["test_data"], fields, self.tokenizer,
-                                                       max_length=config["hyperparameters"]["max_length"])
 
         # torch.manual_seed(5246727901370826861 & ((1 << 63) - 1))
         # torch.manual_seed(40)
@@ -121,25 +86,21 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
 
-        train_iter = BucketIterator(train_data,
-                                    sort_key=lambda x: -len(x.text), sort=True,
-                                    # shuffle=True,
-                                    batch_size=config["hyperparameters"]["batch_size"],
-                                    repeat=False,
-                                    device=device)
+        train_iter, sanity_iter = BucketIterator.splits((train_data, sanity_check_data),
+                                                        sort_key=lambda x: -len(x.text), sort=True,
+                                                        # shuffle=True,
+                                                        batch_size=config["hyperparameters"]["batch_size"],
+                                                        repeat=False,
+                                                        device=device)
         dev_iter = BucketIterator(dev_data, sort_key=lambda x: -len(x.text), sort=True,
                                   # shuffle=True,
                                   batch_size=config["hyperparameters"]["batch_size"], repeat=False,
                                   device=device)
-
-        test_iter = BucketIterator(test_data, sort_key=lambda x: -len(x.text), sort=True,
-                                   # shuffle=True,
-                                   batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-                                   device=device)
         # train_iter = create_iter(train_data)
         # dev_iter = create_iter(dev_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\n"
+                     f"Sanity-check examples: {len(sanity_check_data.examples)}\n"
                      f"Validation examples: {len(dev_data.examples)}")
 
         # bert-base-uncased
@@ -193,49 +154,22 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         #     logging.error("An exception caused params were not saved!")
         #     logging.error(e)
         #
+
+        ##FIXME: NOT HERE!!
         hyperparamopt = False
-        parameter_to_optimize = None  # "learning_rate"
-        self.saveruns = False
-        trials = 15
+        parameter_to_optimize = None  ##"true_batch_size"
 
         if not hyperparamopt:
-            results = []
-            for i in range(trials):
+            for i in range(200):
                 torch.manual_seed(random.randint(1, 1e8))
-
-                def test():
-                    best_F = random.uniform(0.5, 99)
-                    best_loss = random.uniform(0.5, 99)
-                    test_F1 = random.uniform(0.5, 99)
-                    F = best_F / 2
-                    loss = best_loss / 2
-                    return {
-                        "best_loss": best_loss,
-                        "best_F1": best_F,
-                        "best_F1_test_F1": test_F1,
-                        "bestF1_loss": loss,
-                        "bestloss_F1": F
-                    }
-
-                results.append(
-                    self.run_training(config, dev_iter, device, modelfunc, train_data, train_iter, test_iter))
-            logging.info("Results:")
-            for i in range(trials):
-                logging.info(f"{i} :{json.dumps(results[i])}")
-
-            logging.info("*" * 20 + "AVG" + "*" * 20)
-            avg = Counter(results[0])
-            for i in range(1, trials): avg += Counter(results[i])
-            for key in avg:
-                avg[key] /= trials
-            logging.info(json.dumps(avg))
-            logging.info("*" * 20 + "AVG ends" + "*" * 20)
-
+                self.run_training(config, dev_iter, sanity_iter, device, modelfunc, train_data, train_iter)
         else:
-            params = {"learning_rate": [9e-7, 8e-7, 7e-7, 2e-06, 1e-06],
-                      "true_batch_size": [256, 80, 128, 64],
+            params = {"learning_rate": [1e-06, 9e-7, 8e-7, 7e-7, 2e-06],
+                      "true_batch_size": [64, 80, 128],
                       "max_length": [512, 200, 220, 250],
                       "hidden_dropout_prob": [0., 0.1, 0.3, 0.4, 0.5]}
+            trials = 6
+
             logging.info(f"Optimizing {parameter_to_optimize}")
 
             def test():
@@ -272,7 +206,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
                 logging.info(json.dumps(avg))
                 logging.info("*" * 20 + "AVG ends" + "*" * 20)
 
-    def run_training(self, config, dev_iter, device, modelfunc, train_data, train_iter, test_iter):
+    def run_training(self, config, dev_iter, sanity_iter, device, modelfunc, train_data, train_iter):
         logger = logging.getLogger()
         logger.disabled = True
 
@@ -294,34 +228,29 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         best_val_acc = 0
         best_val_F1 = 0
         best_F1_loss, best_loss_F1 = 0, 0
-        bestF1_testF1 = 0
-
-        bestF1_test_F1s = [0, 0, 0, 0]
-        best_val_F1s = [0, 0, 0, 0]
         start_time = time.time()
-        logging.info(f"SAVE STATUS: {self.saveruns}")
         try:
 
             # self.predict("answer_BERT_textnsource.json", model, dev_iter)
             best_val_los_epoch = -1
-            early_stop_after = 4  # steps
+            early_stop_after = 6  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
                 self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                train_loss, train_acc, _, train_F1, train_allF1s = self.validate(model, lossfunction, train_iter,
-                                                                                 config,
-                                                                                 log_results=False)
-                validation_loss, validation_acc, val_acc_per_level, val_F1, val_allF1s = self.validate(model,
-                                                                                                       lossfunction,
-                                                                                                       dev_iter,
-                                                                                                       config,
-                                                                                                       log_results=False)
+                train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
+                                                                   log_results=False)
+                sanity_loss, sanity_acc, sanity_acc_per_level, sanity_F1 = self.validate(model, lossfunction,
+                                                                                         sanity_iter,
+                                                                                         config, log_results=False)
+                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction,
+                                                                                           dev_iter,
+                                                                                           config, log_results=False)
                 saved = False
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
                     best_val_los_epoch = epoch
                     best_loss_F1 = val_F1
-                    if val_F1 > self.save_treshold and self.saveruns:
+                    if val_F1 > self.save_treshold:
                         # Map to CPU before saving, because this requires additional memory /for some reason/
                         model.to(torch.device("cpu"))
                         torch.save(model,
@@ -336,14 +265,8 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
                 if val_F1 > best_val_F1:
                     best_val_F1 = val_F1
                     best_F1_loss = validation_loss
-                    best_val_F1s = val_allF1s
-                    test_loss, test_acc, test_acc_per_level, bestF1_testF1, bestF1_test_F1s = self.validate(model,
-                                                                                                            lossfunction,
-                                                                                                            test_iter,
-                                                                                                            config,
-                                                                                                            log_results=False)
 
-                    if val_F1 > self.save_treshold and not saved and self.saveruns:
+                    if val_F1 > self.save_treshold and not saved:
                         # Map to CPU before saving, because this requires additional memory /for some reason/
                         model.to(torch.device("cpu"))
                         torch.save(model,
@@ -354,8 +277,10 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
                 logging.info(
                     f"Epoch {epoch}, Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
                 logging.info(
+                    f"Epoch {epoch}, Sanity loss|acc|F1: {sanity_loss:.6f}|{sanity_acc:.6f}|{sanity_F1:.6f}")
+                logging.info(
                     f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
-                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1}|{bestF1_testF1})")
+                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})")
 
                 if validation_loss > best_val_loss and epoch > best_val_los_epoch + early_stop_after:
                     logging.info("Early stopping...")
@@ -369,16 +294,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             "best_loss": best_val_loss,
             "best_F1": best_val_F1,
             "bestF1_loss": best_F1_loss,
-            "bestloss_F1": best_loss_F1,
-            "bestF1_testF1": bestF1_testF1,
-            "val_bestF1_C1F1": best_val_F1s[0],
-            "val_bestF1_C2F1": best_val_F1s[1],
-            "val_bestF1_C3F1": best_val_F1s[2],
-            "val_bestF1_C4F1": best_val_F1s[3],
-            "test_bestF1_C1F1": bestF1_test_F1s[0],
-            "test_bestF1_C2F1": bestF1_test_F1s[1],
-            "test_bestF1_C3F1": bestF1_test_F1s[2],
-            "test_bestF1_C4F1": bestF1_test_F1s[3]
+            "bestloss_F1": best_loss_F1
         }
 
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
@@ -445,12 +361,11 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         total_acc_per_level = {depth: total_correct_per_level.get(depth, 0) / total for depth, total in
                                total_per_level.items()}
         F1 = metrics.f1_score(total_labels, total_preds, average="macro")
-        allF1s = metrics.f1_score(total_labels, total_preds, average=None).tolist()
         if log_results:
             self.finalize_results_logging(csvf, loss, F1)
         if train_flag:
             model.train()
-        return loss, acc, total_acc_per_level, F1, allF1s
+        return loss, acc, total_acc_per_level, F1
 
     def finalize_results_logging(self, csvf, loss, f1):
         csvf.close()

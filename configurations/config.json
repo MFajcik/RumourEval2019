@@ -1,5 +1,5 @@
 {
-  "active_model": "ensemble",
+  "active_model": "features_seq",
   "nonactive": "BERT_textonly",
   "models": {
     "ensemble": {
@@ -8,7 +8,7 @@
         "batch_size": 2,
         "max_length": 200,
         "learning_rate": 8e-4,
-        "ensemble_models": 100
+        "ensemble_models": 17
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json",
@@ -28,7 +28,6 @@
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_BRANCH/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_BRANCH/dev/dev.json",
-      "test_data": "data_preprocessing/saved_data_RumEval2019_test_data/test/test.json",
       "cuda": true,
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
@@ -134,6 +133,7 @@
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/dev/dev.json",
+      "test_data": "data_preprocessing/saved_data_RumEval2019_TEST/test/test_labelled.json",
       "cuda": true,
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
@@ -151,14 +151,40 @@
       },
       "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/train/train.json",
       "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL/dev/dev.json",
+      "test_data": "data_preprocessing/saved_data_RumEval2019_SEQ_ALL_TEST/test/test_labelled.json",
       "cuda": true,
       "embeddings": "fasttext.en.300d",
       "vector_cache": "../Figurative_Language/.vector_cache"
     },
     "BERT_textonly": {
+      "variant": "bert-large-uncased",
       "hyperparameters": {
         "learning_rate": 1.5e-06,
         "batch_size": 2,
+        "true_batch_size": 32,
+        "max_length": 200,
+        "epochs": 90,
+        "attention_probs_dropout_prob": 0.5,
+        "hidden_act": "gelu",
+        "hidden_dropout_prob": 0.1,
+        "hidden_size": 768,
+        "initializer_range": 0.02,
+        "intermediate_size": 3072,
+        "max_position_embeddings": 512,
+        "num_attention_heads": 12,
+        "num_hidden_layers": 12,
+        "type_vocab_size": 2,
+        "vocab_size": 30522
+      },
+      "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json",
+      "test_data": "data_preprocessing/saved_data_RumEval2019_TEST/test/test_labelled.json",
+      "cuda": true
+    },
+    "BERT_introspection": {
+      "hyperparameters": {
+        "learning_rate": 1.5e-06,
+        "batch_size": 1,
         "true_batch_size": 32,
         "max_length": 200,
         "epochs": 90,

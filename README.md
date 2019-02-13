@@ -1,3 +1,23 @@
+# This repo is under reconstruction from horrible coding techniques applied before the deadline.
+# Please come back soon for less ugly code.
+
+
+#Stuff into paper:
+* Preprocessing
+* LSTM-baseline vs Non-LSTM baseline
+* Structured-self attention results, introspection
+* BERT - short explanation, description of input
+* BERT - analysis attention at transformer layers
+* BERT - effect of including source/previous post
+* BERT - describe shortly unsuccessful experiments
+    * NER, POS, DEP tags
+    * 3rd segment
+    * sentiment analysis
+    * handcrafted features
+* Comparison with BERT - small
+* Describe system FUSION approaches
+* What we did not tried?
+* Data analysis, bias towards Debunk This: forum
 
 ##Notes:
 

@@ -1,7 +1,9 @@
 import csv
+import json
 import logging
 import math
 import os
+import random
 import time
 from collections import defaultdict, Counter
 
@@ -21,6 +23,7 @@ from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizi
 from utils import count_parameters, get_timestamp
 
 __author__ = "Martin Fajčík"
+import socket
 
 step = 0
 
@@ -67,13 +70,13 @@ class Base_Framework_SEQ(Base_Framework):
         loss, acc = train_loss / total_batches, total_correct / examples_so_far
         return loss, acc
 
-    def train(self, modelfunc):
+    def run_training(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_Seq.prepare_fields(text_field=lambda: torchtext.data.RawField())
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
-
+        test_data, test_fields = self.build_dataset(config["test_data"], fields)
 
         # No need to build vocab for baseline
         # but fo future work I wrote RumourEval2019Dataset that
@@ -82,11 +85,12 @@ class Base_Framework_SEQ(Base_Framework):
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
 
-        create_iter = lambda data: BucketIterator(data,
+        create_iter = lambda data: BucketIterator(data, sort_key=lambda x: -len(x.spacy_processed_text), sort=True,
                                                   batch_size=config["hyperparameters"]["batch_size"], repeat=False,
                                                   device=device)
         train_iter = create_iter(train_data)
         dev_iter = create_iter(dev_data)
+        test_iter = create_iter(test_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
@@ -116,50 +120,111 @@ class Base_Framework_SEQ(Base_Framework):
         #
         # lossfunction = CE_wL1
         start_time = time.time()
+        best_val_loss = math.inf
+        best_val_acc = 0
+        best_val_F1 = 0
+        best_F1_loss, best_loss_F1 = 0, 0
+        bestF1_testF1 = 0
+        bestF1_test_F1s = [0, 0, 0, 0]
+        best_val_F1s = [0, 0, 0, 0]
+        start_time = time.time()
         try:
-            best_val_loss = math.inf
-            best_val_acc = 0
-            best_val_F1 = 0
+
+            # self.predict("answer_BERT_textnsource.json", model, dev_iter)
+            best_val_los_epoch = -1
+            early_stop_after = 8  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
                 self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                log_results = epoch > 500
-                train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
-                                                                   log_results=False)
-                validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction,
-                                                                                           dev_iter,
-                                                                                           config,
-                                                                                           log_results=log_results)
-                sorted_val_acc_pl = sorted(val_acc_per_level.items(), key=lambda x: int(x[0]))
+                train_loss, train_acc, _, train_F1, train_allF1s = self.validate(model, lossfunction, train_iter,
+                                                                                 config,
+                                                                                 log_results=False)
+                validation_loss, validation_acc, val_acc_per_level, val_F1, val_allF1s = self.validate(model,
+                                                                                                       lossfunction,
+                                                                                                       dev_iter,
+                                                                                                       config,
+                                                                                                       log_results=False)
+                saved = False
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
+                    best_val_los_epoch = epoch
+                    best_loss_F1 = val_F1
+                    if val_F1 > self.save_treshold:
+                        # Map to CPU before saving, because this requires additional memory /for some reason/
+                        model.to(torch.device("cpu"))
+                        torch.save(model,
+                                   f"saved/BIG_checkpoint_{str(self.__class__)}_F1"
+                                   f"_{val_F1:.5f}_L_{validation_loss}_{get_timestamp()}_{socket.gethostname()}.pt")
+                        model.to(device)
+                        saved = True
+
                 if validation_acc > best_val_acc:
                     best_val_acc = validation_acc
+
                 if val_F1 > best_val_F1:
                     best_val_F1 = val_F1
+                    best_F1_loss = validation_loss
+                    best_val_F1s = val_allF1s
+                    test_loss, test_acc, test_acc_per_level, bestF1_testF1, bestF1_test_F1s = self.validate(model,
+                                                                                                            lossfunction,
+                                                                                                            test_iter,
+                                                                                                            config,
+                                                                                                            log_results=False)
+
+                    if val_F1 > self.save_treshold and not saved:
+                        # Map to CPU before saving, because this requires additional memory /for some reason/
+                        model.to(torch.device("cpu"))
+                        torch.save(model,
+                                   f"saved/BIG_checkpoint_{str(self.__class__)}_F1"
+                                   f"_{val_F1:.5f}_L_{validation_loss}_{get_timestamp()}_{socket.gethostname()}.pt")
+                        model.to(device)
 
                 logging.info(
                     f"Epoch {epoch}, Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
                 logging.info(
                     f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
-                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})")
+                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1}|{bestF1_testF1})")
 
-                logging.debug(
-                    f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
-                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})")
-
-                logging.debug("\n".join([f"{k} - {v:.2f}" for k, v in sorted_val_acc_pl]))
-                if val_F1 > self.save_treshold:
-                    # Map to CPU before saving, because this requires additional memory /for some reason/
-                    model.to(torch.device("cpu"))
-                    torch.save(model,
-                               f"saved/checkpoint_{str(self.__class__)}_F1_{val_F1:.5f}_{get_timestamp()}.pt")
-                    model.to(device)
+                if validation_loss > best_val_loss and epoch > best_val_los_epoch + early_stop_after:
+                    logging.info("Early stopping...")
+                    break
         except KeyboardInterrupt:
             logging.info('-' * 120)
             logging.info('Exit from training early.')
         finally:
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
+        return {
+            "best_loss": best_val_loss,
+            "best_F1": best_val_F1,
+            "bestF1_loss": best_F1_loss,
+            "bestloss_F1": best_loss_F1,
+            "bestF1_testF1": bestF1_testF1,
+            "val_bestF1_C1F1": best_val_F1s[0],
+            "val_bestF1_C2F1": best_val_F1s[1],
+            "val_bestF1_C3F1": best_val_F1s[2],
+            "val_bestF1_C4F1": best_val_F1s[3],
+            "test_bestF1_C1F1": bestF1_test_F1s[0],
+            "test_bestF1_C2F1": bestF1_test_F1s[1],
+            "test_bestF1_C3F1": bestF1_test_F1s[2],
+            "test_bestF1_C4F1": bestF1_test_F1s[3]
+        }
+
+    def train(self, modelfunc, trials=20):
+        results = []
+        for i in range(trials):
+            torch.manual_seed(random.randint(1, 1e8))
+            results.append(self.run_training(modelfunc))
+        logging.info("Results:")
+        for i in range(trials):
+            logging.info(f"{i} :{json.dumps(results[i])}")
+
+        logging.info("*" * 20 + "AVG" + "*" * 20)
+        avg = Counter(results[0])
+        for i in range(1, trials): avg += Counter(results[i])
+        for key in avg:
+            avg[key] /= trials
+        logging.info(json.dumps(avg))
+        logging.info("*" * 20 + "AVG ends" + "*" * 20)
 
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
                  log_results=False):
@@ -221,12 +286,13 @@ class Base_Framework_SEQ(Base_Framework):
                                total_per_level.items()}
 
         F1 = metrics.f1_score(total_labels, total_preds, average="macro")
+        allF1s = metrics.f1_score(total_labels, total_preds, average=None).tolist()
 
         if log_results:
             self.finalize_results_logging(csvf, loss, acc)
         if train_flag:
             model.train()
-        return loss, acc, total_acc_per_level,F1
+        return loss, acc, total_acc_per_level, F1, allF1s
 
     def finalize_results_logging(self, csvf, loss, acc):
         csvf.close()

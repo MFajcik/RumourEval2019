@@ -15,7 +15,7 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
+from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
 from utils import count_parameters, get_timestamp
@@ -33,7 +33,10 @@ class BERT_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
         self.save_treshold = 0.52
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
+        self.init_tokenizer()
+
+    def init_tokenizer(self):
+        self.tokenizer = BertTokenizer.from_pretrained(self.config["variant"], cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
     def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
@@ -101,11 +104,11 @@ class BERT_Framework(Base_Framework):
     def train(self, modelfunc):
         config = self.config
 
-        fields = RumourEval2019Dataset_BERTTriplets_with_Tags.prepare_fields_for_text()
-        train_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["train_data"], fields, self.tokenizer,
+        fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
+        train_data = RumourEval2019Dataset_BERTTriplets(config["train_data"], fields, self.tokenizer,
                                                                   max_length=config["hyperparameters"]["max_length"])
-        dev_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["dev_data"], fields, self.tokenizer,
-                                                                max_length=config["hyperparameters"]["max_length"])
+        dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,
+                                                      max_length=config["hyperparameters"]["max_length"])
 
         # torch.manual_seed(5246727901370826861 & ((1 << 63) - 1))
         # torch.manual_seed(40)
@@ -164,7 +167,7 @@ class BERT_Framework(Base_Framework):
             self.predict("answer_BERTF1_textonly.json", model, dev_iter)
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                #self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
                 log_results = epoch > 5
                 train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config, log_results=False)
                 validation_loss, validation_acc, val_acc_per_level, val_F1 = self.validate(model, lossfunction, dev_iter,

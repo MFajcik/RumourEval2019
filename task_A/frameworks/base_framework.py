@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 
 import torch
+from sklearn import metrics
 from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
@@ -11,7 +12,7 @@ from tqdm import tqdm
 from modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
 from utils import count_parameters, get_timestamp
-
+import torch.nn.functional as F
 __author__ = "Martin Fajčík"
 
 step = 0
@@ -28,7 +29,7 @@ step = 0
 class Base_Framework:
     def __init__(self, config: dict):
         self.config = config
-        self.save_treshold = 0.855
+        self.save_treshold = 999
 
     def build_dataset(self, path, fields):
         return RumourEval2019Dataset_Branches(path, fields), {k: v for k, v in fields}
@@ -40,7 +41,7 @@ class Base_Framework:
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
 
-        torch.manual_seed(42)
+        # torch.manual_seed(42)
 
         # No need to build vocab for baseline
         # but fo future work I wrote RumourEval2019Dataset that
@@ -78,20 +79,24 @@ class Base_Framework:
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
                                      lr=config["hyperparameters"]["learning_rate"],
                                      betas=[0.9, 0.999], eps=1e-8)
-        lossfunction = torch.nn.CrossEntropyLoss()
+        lossfunction = torch.nn.CrossEntropyLoss(
+            weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).to(device))
         start_time = time.time()
         try:
             best_val_loss = math.inf
             best_val_acc = 0
+            best_val_F1 = 0
             for epoch in range(config["hyperparameters"]["epochs"]):
                 train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config)
+                val_F1, validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config)
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
                 if validation_acc > best_val_acc:
                     best_val_acc = validation_acc
+                if val_F1 > best_val_F1:
+                    best_val_F1 = val_F1
                 logging.info(
-                    f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
+                    f"Validation loss|acc|F1|BEST_F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f}|{best_val_F1}")
                 if validation_acc > self.save_treshold:
                     torch.save(model,
                                f"saved/checkpoint_{str(self.__class__)}_ACC_{validation_acc:.5f}_{get_timestamp()}.pt")
@@ -139,6 +144,7 @@ class Base_Framework:
             optimizer.step()
 
             total_correct += self.calculate_correct(masked_preds, masked_labels)
+
             examples_so_far += 1
             train_loss += loss.item()
             if verbose:
@@ -158,6 +164,8 @@ class Base_Framework:
         examples_so_far = 0
         dev_loss = 0
         total_correct = 0
+        total_labels = []
+        total_preds = []
         already_seen = []
         for i, batch in enumerate(dev_iter):
             pred_logits = model(batch)
@@ -184,6 +192,11 @@ class Base_Framework:
             loss = lossfunction(masked_preds, masked_labels)
 
             total_correct += self.calculate_correct(masked_preds, masked_labels)
+
+            maxpreds, argmaxpreds = torch.max(F.softmax(masked_preds, -1), dim=1)
+            total_preds += list(argmaxpreds.cpu().numpy())
+            total_labels += list(masked_labels.cpu().numpy())
+
             examples_so_far += len(masked_labels)
             dev_loss += loss.item()
             if verbose:
@@ -192,7 +205,8 @@ class Base_Framework:
                 pbar.update(1)
         if train_flag:
             model.train()
-        return dev_loss / dev_iter.batch_size, total_correct / examples_so_far
+        F1 = metrics.f1_score(total_labels, total_preds, average="macro")
+        return F1, dev_loss / dev_iter.batch_size, total_correct / examples_so_far
 
     def calculate_correct(self, pred_logits: torch.Tensor, labels: torch.Tensor, levels=None):
         preds = torch.argmax(pred_logits, dim=1)

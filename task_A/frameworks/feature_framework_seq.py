@@ -39,6 +39,7 @@ class Feature_Framework_Seq(Base_Framework):
         fields = RumourEval2019Dataset_Seq.prepare_fields()
         train_data = RumourEval2019Dataset_Seq(config["train_data"], fields)
         dev_data = RumourEval2019Dataset_Seq(config["dev_data"], fields)
+        test_data = RumourEval2019Dataset_Seq(config["test_data"], fields)
 
         fields = {k: v for k, v in fields}
 
@@ -46,7 +47,7 @@ class Feature_Framework_Seq(Base_Framework):
         # 14833 together
         # 11809 words in train
         # 6450 words in dev
-        fields['spacy_processed_text'].build_vocab(train_data, dev_data, vectors=config["embeddings"],
+        fields['spacy_processed_text'].build_vocab(train_data, dev_data, test_data, vectors=config["embeddings"],
                                                    vectors_cache=config["vector_cache"])
         self.vocab = fields['spacy_processed_text'].vocab
 
@@ -60,6 +61,7 @@ class Feature_Framework_Seq(Base_Framework):
 
         train_iter = create_iter(train_data)
         dev_iter = create_iter(dev_data)
+        test_iter = create_iter(test_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 

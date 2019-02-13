@@ -15,12 +15,12 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator
 from tqdm import tqdm
 
+from ensembling.ensemble_helper import load_and_eval
+from ensembling.secondary_cls import SecondaryCls
 from modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
-from task_A.frameworks.ensemble_helper import load_and_eval
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
-from task_A.models.secondary_cls import SecondaryCls
 
 map_stance_label_to_s = {
     0: "support",
@@ -29,7 +29,6 @@ map_stance_label_to_s = {
     3: "query"
 }
 map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
-
 
 # average predictions
 # 0.5604509658482322
@@ -51,13 +50,33 @@ map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 # [3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832
 # 0.713499|0.7488.22|0.538256
 
+# 0.6257583490998202
+found_best_ensemble = [
+    "val_result_F1_0.57948_L_0.6698856112670224_2019-01-28_08:24_pcknot5.npy",
+    "val_result_F1_0.57759_L_0.703442574330578_2019-01-28_00:15_pcbirger.npy",
+    "val_result_F1_0.57623_L_0.6621931040825227_2019-01-28_00:32_pcknot5.npy",
+    "val_result_F1_0.57526_L_0.6638631148319039_2019-01-27_08:12_pcknot4.npy",
+    "val_result_F1_0.57423_L_0.7102468566180802_2019-01-28_17:03_pcknot5.npy",
+    "val_result_F1_0.57371_L_0.6669414722463592_2019-01-27_00:46_pcknot5.npy",
+    "val_result_F1_0.56750_L_0.6898565446440823_2019-01-26_20:31_pcknot4.npy",
+    "val_result_F1_0.56656_L_0.699664715034862_2019-01-27_15:57_pcbirger.npy",
+    "val_result_F1_0.56460_L_0.724339671515812_2019-01-28_15:53_pcbirger.npy",
+    "val_result_F1_0.56433_L_0.663498227135592_2019-01-28_13:27_pcknot2.npy",
+    "val_result_F1_0.56313_L_0.689033422880176_2019-01-26_20:39_pcknot4.npy",
+    "val_result_F1_0.56069_L_0.670826427442727_2019-01-27_02:10_pcknot4.npy",
+    "val_result_F1_0.55930_L_0.6865916204641289_2019-01-27_16:14_pcbirger.npy",
+    "val_result_F1_0.55580_L_0.7056901221467318_2019-01-26_20:24_pcknot4.npy",
+    "val_result_F1_0.55509_L_0.7102856230281916_2019-01-28_00:06_pcbirger.npy",
+    "val_result_F1_0.55504_L_0.6975949840002625_2019-01-27_23:51_pcbirger.npy",
+    "val_result_F1_0.55092_L_0.6955123813847969_2019-01-28_12:34_pcknot4.npy"
+]
+
 
 class Ensemble_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
         # self.create_l2_optim(config, torch.nn.CrossEntropyLoss(
-        #     weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()))
-        #
+        #    weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()))
         # sys.exit()
 
         self.save_treshold = 999
@@ -66,11 +85,13 @@ class Ensemble_Framework(Base_Framework):
                                                        do_lower_case=True)
 
     def create_l2_optim(self, config, lossfunction):
-
         files = sorted(os.listdir("saved/ensemble/numpy"))
-
-        valid = [f for f in files if f.startswith("train_") and f.endswith("npy")]
-        result_files = [f for f in valid if "result" in f]
+        train_prefix = "val_"
+        valid = [f for f in files if f.startswith(train_prefix) and f.endswith("npy")]
+        valid_ensemble_subset = [f"{train_prefix}{s[len('val_'):]}" for s in list(found_best_ensemble)]
+        #        result_files = [f for f in valid if "result" in f]
+        result_files = [f for f in valid if "result" in f and f in valid_ensemble_subset]
+        assert len(result_files) == len(valid_ensemble_subset)
         logging.debug(result_files)
         label_file = [f for f in valid if "labels" in f][0]
         labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
@@ -87,7 +108,11 @@ class Ensemble_Framework(Base_Framework):
         labels = torch.Tensor(labels).cuda().long()
 
         valid = [f for f in files if f.startswith("val_") and f.endswith("npy")]
-        result_files = [f for f in valid if "result" in f]
+
+        valid_ensemble_subset = [f"val_{s[len('val_'):]}" for s in list(found_best_ensemble)]
+        #        result_files = [f for f in valid if "result" in f]
+        result_files = [f for f in valid if "result" in f and f in valid_ensemble_subset]
+        assert len(result_files) == len(valid_ensemble_subset)
         logging.debug(result_files)
         label_file = [f for f in valid if "labels" in f][0]
         dev_labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
@@ -107,12 +132,14 @@ class Ensemble_Framework(Base_Framework):
         ens_best_distribution = None
         l = torch.nn.CrossEntropyLoss(
             weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda())
-        for k in tqdm(range(1000)):
+        for _ in range(1000):
 
             F1, distribution = self.run_LR_training(config, dev_labels, dev_results, labels, lossfunction,
                                                     results, total_labels)
+
+            logging.info(f"New Best F1: {F1}")
             if F1 > ens_best_F1:
-                _, _, e_f1 = load_and_eval(l,
+                _, _, e_f1 = eval_F1_paper(l,
                                            weights=distribution
                                            )
                 if e_f1 != F1:
@@ -227,7 +254,7 @@ class Ensemble_Framework(Base_Framework):
         elif eval_from_npy:
             start_time = time.time()
             try:
-                load_and_eval(lossfunction)
+                eval_F1_paper(lossfunction)
             except KeyboardInterrupt:
                 logging.info('-' * 120)
                 logging.info('Exit from training early.')

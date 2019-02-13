@@ -97,7 +97,7 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
             # build data for source tweet for veracity
             for i in range(len(thread_features_array)):
                 if not fset_name.endswith("test"):
-                    fold_veracity_labels.append(convert_label(conversation['veracity']))
+                    fold_veracity_labels.append(convert_label(-1))
                 conv_ids.append(conversation['id'])
 
         # % 0 supp, 1 comm,2 deny, 3 query
@@ -119,7 +119,7 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
                             continue
                         else:
                             already_known_tweetids.add(tweet_ids_branch[idx])
-                        print(f"{tweet_ids_branch[idx]} {branch_labels[idx]}")
+                        # print(f"{tweet_ids_branch[idx]} {branch_labels[idx]}")
                         example = {
                             "id": cnt,
                             "branch_id": f"{fold_idx}.{idx}",
@@ -289,7 +289,7 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
 
 
 # %%
-def main(feats="BUT_TEXT_test"):
+def main(feats="BUT_Features"):
     if feats == 'SemEvalfeatures':
         SemEvalfeatures = ['avgw2v', 'hasnegation', 'hasswearwords',
                            'capitalratio', 'hasperiod', 'hasqmark',

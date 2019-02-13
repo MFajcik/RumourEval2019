@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import List, Tuple
 
 import torch
@@ -21,7 +22,7 @@ class RumourEval2019Dataset_BERTTriplets(tt.data.Dataset):
             # - [CLS] source post, previous post [SEP] choice_1 [SEP]
 
             # more important parts are towards the end, usually, and they can be truncated
-
+            # logging.info("Experiment! no SRC text")
             for example in data_json["Examples"]:
                 make_ids = lambda x: tokenizer.convert_tokens_to_ids(tokenizer.tokenize(x))
                 text = make_ids(example["spacy_processed_text"])
