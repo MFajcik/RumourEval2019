@@ -9,9 +9,9 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from modelutils import glorot_param_init
+from neural_bag.modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
-from utils import count_parameters, get_timestamp
+from utils.utils import count_parameters, get_timestamp
 import torch.nn.functional as F
 __author__ = "Martin Fajčík"
 

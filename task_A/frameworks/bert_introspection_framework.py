@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.bert_framework import BERT_Framework, map_stance_label_to_s
-from utils import count_parameters
+from utils.utils import count_parameters
 import seaborn
 
 class BERT_Introspection_Framework(BERT_Framework):

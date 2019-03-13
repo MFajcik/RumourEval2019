@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
 from task_A.frameworks.base_framework import Base_Framework
-from utils import count_parameters, get_timestamp
+from utils.utils import count_parameters, get_timestamp
 
 map_veracity_label_to_s = {
     0: "true",

@@ -20,8 +20,8 @@ from tqdm import tqdm
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
-from utils import count_parameters
-from utils import get_timestamp
+from utils.utils import count_parameters
+from utils.utils import get_timestamp
 
 map_stance_label_to_s = {
     0: "support",
@@ -196,7 +196,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         hyperparamopt = False
         parameter_to_optimize = None  # "learning_rate"
         self.saveruns = False
-        trials = 15
+        trials = 20
 
         if not hyperparamopt:
             results = []

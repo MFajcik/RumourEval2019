@@ -9,12 +9,11 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from encoders import LayerNorm
-from modelutils import glorot_param_init, disable_gradients
+from neural_bag.modelutils import glorot_param_init, disable_gradients
 from task_A.datasets.RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
 from task_A.frameworks.base_framework import Base_Framework
 #from tflogger import TBLogger
-from utils import count_parameters, get_timestamp
+from utils.utils import count_parameters, get_timestamp
 
 # tblogging = TBLogger('./logs',filename_suffix="attandbsl")
 

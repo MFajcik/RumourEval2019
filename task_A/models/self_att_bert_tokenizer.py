@@ -5,7 +5,7 @@ from pytorch_pretrained_bert import BertModel
 from pytorch_pretrained_bert.modeling import PreTrainedBertModel
 from torch import nn
 
-from encoders import SelfAttentiveEncoder
+from neural_bag.encoders import SelfAttentiveEncoder
 
 
 def dump_batch_contents(batch):

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from encoders import LSTM
+from neural_bag.encoders import LSTM
 
 
 class Baseline_LSTM(torch.nn.Module):

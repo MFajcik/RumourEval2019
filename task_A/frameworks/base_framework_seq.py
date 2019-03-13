@@ -15,12 +15,12 @@ from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
 
-from modelutils import glorot_param_init
+from neural_bag.modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_Seq import RumourEval2019Dataset_Seq
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.bert_framework import map_stance_label_to_s
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
-from utils import count_parameters, get_timestamp
+from utils.utils import count_parameters, get_timestamp
 
 __author__ = "Martin Fajčík"
 import socket

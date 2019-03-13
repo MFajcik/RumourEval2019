@@ -1,7 +1,7 @@
 import torch
 
-from embedders import Embedder
-from encoders import SelfAttentiveEncoder
+from neural_bag.embedders import Embedder
+from neural_bag.encoders import SelfAttentiveEncoder
 
 
 class SelAttTextOnly(torch.nn.Module):

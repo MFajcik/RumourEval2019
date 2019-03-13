@@ -15,7 +15,7 @@ from tqdm import tqdm
 from task_A.datasets.RumourEvalDataset_Seq import RumourEval2019Dataset_Seq
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.text_framework_branch import Text_Framework
-from utils import totext, count_parameters, get_timestamp
+from utils.utils import totext, count_parameters, get_timestamp
 
 
 def frobenius_norm(mat):

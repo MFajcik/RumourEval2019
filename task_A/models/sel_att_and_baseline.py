@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
 
-from embedders import Embedder
-from encoders import SelfAttentiveEncoder
+from neural_bag.embedders import Embedder
+from neural_bag.encoders import SelfAttentiveEncoder
 
 
 class SelfAttandBsline(torch.nn.Module):

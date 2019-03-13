@@ -19,7 +19,7 @@ from task_A.frameworks.bert_framework import map_stance_label_to_s
 # 0.6016077421720415
 # weights = [1,1,1,1]
 # 0.5862751006376522
-from utils import setup_logging
+from utils.utils import setup_logging
 
 worst_k = [
     "result_F1_0.56266_L_0.749426320401043",

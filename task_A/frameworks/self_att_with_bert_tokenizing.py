@@ -22,7 +22,7 @@ from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTri
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.text_framework_branch import Text_Framework
 from task_A.frameworks.text_framework_seq import Text_Framework_Seq
-from utils import count_parameters, get_timestamp
+from utils.utils import count_parameters, get_timestamp
 
 map_stance_label_to_s = {
     0: "support",
