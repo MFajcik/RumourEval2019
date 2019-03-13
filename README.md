@@ -35,7 +35,7 @@ tbd.
 ## Replication of results
 ### Replication from ensemble predictions
 Since each trained model is saved in checkpoints of size 1.3GB, we do not provide these online.
-To replicate the ensemble results from paper, we provide a set of pre-calculated predictions frfom these trained models per validation set and per test set.
+To replicate the ensemble results from paper, we provide a set of pre-calculated predictions from these trained models per validation set and per test set.
 The predictions on validation and test sets are saved as numpy arrays in [predictions](predictions) folder.
 
 Running [replicate_ensemble_results.py](replicate_ensemble_results.py) directly replicates ensemble results.
