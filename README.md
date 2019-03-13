@@ -1,4 +1,4 @@
-#BUT-FIT at SemEval-2019 Task 7: Determining the Rumour Stance with Pre-Trained Deep Bidirectional Transformers
+# BUT-FIT at SemEval-2019 Task 7: Determining the Rumour Stance with Pre-Trained Deep Bidirectional Transformers
 
 __Authors__:
 * Martin Fajčík
@@ -35,9 +35,10 @@ tbd.
 ## Replication of results
 ### Replication from ensemble predictions
 Since each trained model is saved in checkpoints of size 1.3GB, we do not provide these online.
-To replicate the ensemble results from paper, we provide a set of pre-calculated predictions frfom these trained models per validation set and per test set.
+To replicate the ensemble results from paper, we provide a set of pre-calculated predictions from these trained models per validation set and per test set.
 The predictions on validation and test sets are saved as numpy arrays in [predictions](predictions) folder.
 
+Running [replicate_ensemble_results.py](replicate_ensemble_results.py) directly replicates ensemble results.
 
 ### Replication via training new models
 tbd.
@@ -48,7 +49,7 @@ tbd.
 tbd.
 ## Visualisation
 ### Attention from BERT - images
-The images of multi-head attention from all heads and layers are available for download [HERE](www.stud.fit.vutbr.cz/~ifajcik/example_attention.zip). 
+The images of multi-head attention from all heads and layers are available for download [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/example_attention.zip). 
 
 ### Structured self-attention with BERT-pretrained embeddings
 tbd.
