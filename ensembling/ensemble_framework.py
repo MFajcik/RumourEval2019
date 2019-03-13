@@ -2,7 +2,6 @@ import csv
 import logging
 import os
 import socket
-import sys
 import time
 from collections import Counter, defaultdict, Iterator
 
@@ -17,7 +16,7 @@ from tqdm import tqdm
 
 from ensembling.ensemble_helper import load_and_eval
 from ensembling.secondary_cls import SecondaryCls
-from modelutils import glorot_param_init
+from neural_bag.modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
@@ -30,27 +29,8 @@ map_stance_label_to_s = {
 }
 map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 
-# average predictions
-# 0.5604509658482322
-
-# average logits
-# 0.5553973038819165 # logit avg
-
-# logistic regression on logits
-# 0.5473578435835631
-
-# lr on probs did not worked better either
-
-# Fixed zeros!
-# restrained LR (just identity matrices with 4 coeficents)
-# they behave better!
-# 0.5700931074179761
-
-
-# [3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832
-# 0.713499|0.7488.22|0.538256
-
-# 0.6257583490998202
+# this is a list of best ensemble predictions
+# found via find_best_ensemble_greedy method from ensemble_helper.py
 found_best_ensemble = [
     "val_result_F1_0.57948_L_0.6698856112670224_2019-01-28_08:24_pcknot5.npy",
     "val_result_F1_0.57759_L_0.703442574330578_2019-01-28_00:15_pcbirger.npy",
@@ -75,6 +55,8 @@ found_best_ensemble = [
 class Ensemble_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
+
+        # Uncomment this to run logistic regression L2 classifier
         # self.create_l2_optim(config, torch.nn.CrossEntropyLoss(
         #    weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()))
         # sys.exit()
@@ -83,6 +65,10 @@ class Ensemble_Framework(Base_Framework):
         self.modeltype = config["modeltype"]
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
+
+    # In these experiments I have tried to learn an optimal combination of ensemble predictions via L2 classifier
+    # I have tried various approaches (combining predictions / pre-softmax scores) but reached bad results
+    # As for a space constraints, this experiment did not make it into the paper
 
     def create_l2_optim(self, config, lossfunction):
         files = sorted(os.listdir("saved/ensemble/numpy"))
@@ -97,6 +83,7 @@ class Ensemble_Framework(Base_Framework):
         labels = np.load(os.path.join("saved/ensemble/numpy", label_file))
         result_matrices = [np.load(os.path.join("saved/ensemble/numpy", result_file)) for result_file in result_files]
         results = np.array(result_matrices)
+
         # experiment 2, try softmaxing logits first
         results = torch.Tensor(results)
         results = F.softmax(results, -1).numpy()
@@ -105,6 +92,7 @@ class Ensemble_Framework(Base_Framework):
         # experiment 1, traing LR on logits
         # results = np.concatenate(results, -1)
         # results = torch.Tensor(results).cuda()
+
         labels = torch.Tensor(labels).cuda().long()
 
         valid = [f for f in files if f.startswith("val_") and f.endswith("npy")]
@@ -139,7 +127,7 @@ class Ensemble_Framework(Base_Framework):
 
             logging.info(f"New Best F1: {F1}")
             if F1 > ens_best_F1:
-                _, _, e_f1 = eval_F1_paper(l,
+                _, _, e_f1 = load_and_eval(l,
                                            weights=distribution
                                            )
                 if e_f1 != F1:
@@ -203,30 +191,15 @@ class Ensemble_Framework(Base_Framework):
                                                   repeat=False,
                                                   device=device)
 
-        train_iter = BucketIterator(train_data, sort_key=lambda x: -len(x.text), sort=True,
-                                    batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-                                    device=device)
         dev_iter = create_iter(dev_data)
         test_iter = create_iter(test_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
         logging.info(f"Test examples: {len(test_data.examples)}")
 
-        # bert-base-uncased
-        # bert-large-uncased,
-        # bert-base-multilingual-cased
         checkpoints = os.listdir("saved/ensemble/")
         modelpaths = sorted([f"saved/ensemble/{ch}" for ch in checkpoints if ch.endswith(".pt")])
         logging.info(f"Running ensemble of {len(modelpaths)} models")
-        # modelpaths = [
-        #     "saved/ensemble/checkpoint_<class 'task_A.frameworks.bert_framework."
-        #     "BERT_Framework'>_F1_0.53206_2019-01-21_01:28.pt",
-        #     "saved/ensemble/checkpoint_<class 'task_A.frameworks."
-        #     "bert_framework_hyperparam_tuning.BERT_Framework_Hyperparamopt'>_F1_0.52782_2019-01-21_09:02_pcfajcik.pt",
-        #     "saved/ensemble/checkpoint_<class 'task_A.frameworks."
-        #     "bert_framework_hyperparam_tuning.BERT_Framework_Hyperparamopt'>_F1_0.53513_2019-01-21_05:19_pcfajcik.pt",
-        # ]
-        # modelpaths = ["saved/checkpoint_<class 'task_A.frameworks.bert_framework_hyperparam_tuning.BERT_Framework_Hyperparamopt'>_F1_0.56131_2019-01-22_04:07_pcbirger.pt"]
 
         models = []
 
@@ -254,13 +227,14 @@ class Ensemble_Framework(Base_Framework):
         elif eval_from_npy:
             start_time = time.time()
             try:
-                eval_F1_paper(lossfunction)
+                load_and_eval(lossfunction)
             except KeyboardInterrupt:
                 logging.info('-' * 120)
                 logging.info('Exit from training early.')
             finally:
                 logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
         elif build_predictions:
+            # generate .npy predictions from models
             start_time = time.time()
             try:
 
@@ -273,16 +247,22 @@ class Ensemble_Framework(Base_Framework):
                     model.dropout = pretrained_model.dropout
                     logging.info("MODEL: " + model_path)
                     suffix = model_path[model_path.index("F1"):model_path.index(".pt")]
+
+                    # generate prediction scores from train data
                     # train_loss, train_acc, _, train_F1 = self.build_results(idx, model, suffix,
                     #                                                         lossfunction,
                     #                                                         train_iter,
                     #                                                         config,
                     #                                                         prefix="train_", )
+
+                    # generate prediction scores from val data
                     # validation_loss, validation_acc, val_acc_per_level, val_F1 = self.build_results(idx, model, suffix,
                     #                                                                                 lossfunction,
                     #                                                                                 dev_iter,
                     #                                                                                 config,
                     #                                                                                 prefix="val_")
+
+                    # generate prediction scores from test data
                     self.build_results(idx, model, suffix,
                                        lossfunction,
                                        test_iter,

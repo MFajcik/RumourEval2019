@@ -1,6 +1,5 @@
 {
-  "active_model": "features_seq",
-  "nonactive": "BERT_textonly",
+  "active_model": "BERT_textonly",
   "models": {
     "ensemble": {
       "modeltype": "bert-large-uncased",

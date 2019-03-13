@@ -1,3 +1,4 @@
+import fileinput
 import logging
 import sys
 import time
@@ -5,6 +6,7 @@ from collections import Counter, defaultdict
 
 import torch
 import torch.nn.functional as F
+from past.builtins import raw_input
 from pytorch_pretrained_bert import BertTokenizer
 from sklearn import metrics
 from torchtext.data import BucketIterator
@@ -13,15 +15,13 @@ from tqdm import tqdm
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.bert_framework import BERT_Framework, map_stance_label_to_s
 from utils import count_parameters
-
+import seaborn
 
 class BERT_Introspection_Framework(BERT_Framework):
     def __init__(self, config: dict):
-        import matplotlib.pyplot as plt
-        import seaborn
         super().__init__(config)
         self.init_tokenizer()
-        seaborn.set(font_scale=0.2)
+        seaborn.set(font_scale=0.7)
 
     def init_tokenizer(self):
         self.tokenizer = BertTokenizer.from_pretrained("bert-large-uncased", cache_dir="./.BERTcache",
@@ -118,9 +118,13 @@ class BERT_Introspection_Framework(BERT_Framework):
             total_correct += correct
             total_correct_per_level += correct_per_level
 
-            prefix = "deny"
-            if batch.stance_label == 2 and correct[0] == True:
-                self.generate_attention_images(batch, model, pred_logits, prefix)
+            prefix = "exccomment"
+            # works only with batch size 1
+            if batch.stance_label != 1 and correct == True:
+                c = raw_input('please confirm ')
+                if c == "y":
+                    self.generate_attention_images(batch, model, pred_logits, prefix)
+                    sys.exit()
 
             examples_so_far += len(batch.stance_label)
             if verbose:
@@ -166,14 +170,16 @@ class BERT_Introspection_Framework(BERT_Framework):
     def generate_attention_images(self, batch, model, pred_logits, prefix):
         words = [self.tokenizer.convert_ids_to_tokens(batch.text[i].cpu().numpy()) for i in
                  range(batch.text.shape[0])]
+
+        import matplotlib.pyplot as plt
         for layer in range(24):
-            fig, axs = plt.subplots(1, 4, figsize=(20, 10))
+            subplots_per_plot = 1
+            fig, axs = plt.subplots(1, subplots_per_plot, figsize=(20, 10))
             print("Encoder Layer", layer + 1)
             for b in range(pred_logits.shape[0]):
-                sent = words[b]
-                for h in range(4):
-                    for head in range(4):
-                        self.draw(model.bert.encoder.all_attention_probs[layer][b, h * 4 + head].cpu().data,
-                                  sent, sent if head == 0 else [], ax=axs[head])
-                    plt.savefig(f'images/{prefix}_L_{layer}_H{h * 4 + 1}_{h * 4 + 4}.png', dpi=500)
+                for h in range(16):
+                    sent = words[b]
+                    self.draw(model.bert.encoder.all_attention_probs[layer][b, h].cpu().data,
+                              sent, sent, ax=axs)
+                    plt.savefig(f'images/{prefix}_L_{layer}_H{h * subplots_per_plot + 1}_{h * subplots_per_plot + subplots_per_plot}.png', dpi=400)
         sys.exit()

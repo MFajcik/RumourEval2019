@@ -131,10 +131,28 @@ found_best_ensemble2 = ['val_result_F1_0.55141_L_0.7247291676338632_2019-01-28_1
                         'val_result_F1_0.57759_L_0.703442574330578_2019-01-28_00:15_pcbirger.npy',
                         'val_result_F1_0.57948_L_0.6698856112670224_2019-01-28_08:24_pcknot5.npy']
 
+#TRAIN_PRIORS = np.array([17.73049645, 67.45255894, 7.24554342, 7.57140119])
+#DEV_PRIORS = np.array([6.86868687, 79.52861953, 5.52188552, 8.08080808])
+#TEST_PRIORS = np.array([8.593322386425834, 80.78817733990148,  5.528188286808977,5.0903119868637114])/100
 
-def load_and_eval(lossfunction, produce_result=False, weights=None, prefix="val_", result_name="answer.json",
-                  exclude_worst=True):
-    strategy = "avg_softmaxes"
+# TEST DATA
+#TOP-N
+#85.22167487684729 NO PRIOR !
+
+#85.00273672687466 TRAIN PRIOR
+#83. 68910782703887 TEST PRIOR
+
+#EXC_K
+#0.8549534756431308 NO PRIOR!
+#0.8467432950191571 TRAIN PRIOR
+#0.8347016967706623 TEST PRIOR
+
+# VAL DATA
+# 0.8296296296296296
+# 0.8336700336700337 TRAIN PRIOR
+# 0.8228956228956229 TEST PRIOR
+def load_and_eval(lossfunction, produce_result=False, weights=None, prefix="val_", result_name="answer.json"
+                  , strategy = "average_logits"):
     files = sorted(os.listdir("saved/ensemble/numpy_result/"))
     valid_ensemble_subset = [f"{prefix}{s[len('val_'):]}" for s in list(found_best_ensemble)]
     valid = [f for f in files if f.startswith(prefix) and f.endswith("npy")]
@@ -147,7 +165,7 @@ def load_and_eval(lossfunction, produce_result=False, weights=None, prefix="val_
             if w in f: return True
         return False
 
-    # result_files = [f for f in valid if "result" in f and (not exclude_worst or not has_worst_substr(f))]
+    #result_files = [f for f in valid if "result" in f and (not exclude_worst or not has_worst_substr(f))]
     print(result_files)
     print(f"Ensemble of {len(result_files)} files")
     label_file = [f for f in valid if "labels" in f][0]
@@ -173,10 +191,11 @@ def load_and_eval(lossfunction, produce_result=False, weights=None, prefix="val_
         for k in range(results.shape[0]): results[k] = results[k] * weights[k]
         results = torch.sum(results, 0)
     elif strategy == "avg_softmaxes":
-        results = torch.Tensor(results).cuda()
         # Models x batch x classes
+        results = torch.Tensor(results).cuda()
         results = F.softmax(results, -1)
         results = torch.mean(results, 0)
+
     else:
         return
     labels = torch.Tensor(labels).cuda().long()
@@ -347,12 +366,11 @@ def find_F1(labels, results):
     return F1
 
 
-# 586306110771196
 if __name__ == "__main__":
     setup_logging(os.path.basename(sys.argv[0]).split(".")[0],
                   logpath="logs/",
                   config_path="configurations/logging.yml")
-    intent = "eval_gold_labels"
+    intent = "eval_F1_paper"
     if intent == "eval_F1_paper":
         eval_F1__for_paper(torch.nn.CrossEntropyLoss(
             weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).cuda()),
@@ -392,3 +410,4 @@ if __name__ == "__main__":
                 logging.info('\n'.join(sorted(list(fs), reverse=True)))
                 logging.info(F1)
                 logging.info(f"LEN: {len(fs)}")
+# 0.8500273672687466

@@ -220,8 +220,6 @@ def initopts():
 
 
 if __name__ == "__main__":
-    # Exprimental playground
-    # preprocessed = preprocess_text("Hello, Apple is looking at buying New York startup for $1 billion", initopts())
     print(preprocess_text(
         "Appalled by the attack on Charlie Hebdo in Paris, 10 - probably journalists - now confirmed dead. An attack on free speech everywhere.",
         initopts()))
