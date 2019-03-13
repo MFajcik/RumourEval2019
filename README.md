@@ -49,7 +49,7 @@ tbd.
 tbd.
 ## Visualisation
 ### Attention from BERT - images
-The images of multi-head attention from all heads and layers are available for download [HERE](www.stud.fit.vutbr.cz/~ifajcik/example_attention.zip). 
+The images of multi-head attention from all heads and layers are available for download [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/example_attention.zip). 
 
 ### Structured self-attention with BERT-pretrained embeddings
 tbd.
