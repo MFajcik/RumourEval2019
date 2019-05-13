@@ -16,12 +16,13 @@ from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTri
 from task_A.frameworks.bert_framework import BERT_Framework
 from utils.utils import map_stance_label_to_s
 from utils.utils import count_parameters
-import seaborn
 
 class BERT_Introspection_Framework(BERT_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
         self.init_tokenizer()
+
+        import seaborn
         seaborn.set(font_scale=0.7)
 
     def init_tokenizer(self):
@@ -82,6 +83,7 @@ class BERT_Introspection_Framework(BERT_Framework):
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
 
     def draw(self, data, x, y, ax, cmap="Blues"):
+        import seaborn
         seaborn.heatmap(data,
                         xticklabels=x, square=True, yticklabels=y, vmin=0.0, vmax=1.0,
                         cbar=False, ax=ax, cmap=cmap)
