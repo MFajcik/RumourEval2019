@@ -56,7 +56,7 @@ Duration of 1 training: ~ 2.7 minutes
 
 ## Prediction examples
 ### Structured self-attention with BERT-pretrained embeddings (BiLSTM+SelfAtt)
-`tsv` file containing predictions, ground truth, confidence and model inputs of trained `BiLSTM+SelfAtt` model is available [HERE](introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.tsv).
+`tsv` file containing predictions, ground truth, confidence and model inputs of trained `BiLSTM+SelfAtt` model is available [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.tsv).
 ### BERT
 `tsv` file containing predictions, ground truth, confidence and model inputs of trained `TOP-N_s` ensemble (our best published result) is available [HERE]().
 ## Visualisation
