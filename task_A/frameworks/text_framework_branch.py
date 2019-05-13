@@ -40,7 +40,7 @@ class Text_Framework(Base_Framework):
                                                            torch.cuda.is_available() else "cpu")) \
             .unsqueeze(0)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)

@@ -4,22 +4,12 @@ import os
 import random
 import statistics
 import sys
-
 import numpy as np
 import torch
+
 from sklearn import metrics
 from torch.nn import functional as F
-
-# BEST WEIGHTS
-from task_A.frameworks.bert_framework import map_stance_label_to_s
-# Best ensemble result BIG
-# 0.5824233058608058
-# 0.5862751006376522
-# 0.5882706757276623
-# 0.6016077421720415
-# weights = [1,1,1,1]
-# 0.5862751006376522
-from utils.utils import setup_logging
+from utils.utils import setup_logging, map_stance_label_to_s
 
 worst_k = [
     "result_F1_0.56266_L_0.749426320401043",

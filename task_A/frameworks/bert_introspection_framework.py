@@ -13,7 +13,8 @@ from torchtext.data import BucketIterator
 from tqdm import tqdm
 
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
-from task_A.frameworks.bert_framework import BERT_Framework, map_stance_label_to_s
+from task_A.frameworks.bert_framework import BERT_Framework
+from utils.utils import map_stance_label_to_s
 from utils.utils import count_parameters
 import seaborn
 
@@ -27,7 +28,7 @@ class BERT_Introspection_Framework(BERT_Framework):
         self.tokenizer = BertTokenizer.from_pretrained("bert-large-uncased", cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()

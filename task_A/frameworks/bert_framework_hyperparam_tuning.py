@@ -20,16 +20,8 @@ from tqdm import tqdm
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
-from utils.utils import count_parameters
+from utils.utils import count_parameters, get_class_weights, map_stance_label_to_s
 from utils.utils import get_timestamp
-
-map_stance_label_to_s = {
-    0: "support",
-    1: "comment",
-    2: "deny",
-    3: "query"
-}
-map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
 
 
 class BERT_Framework_Hyperparamopt(Base_Framework):
@@ -40,13 +32,13 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
-        total_batches = len(train_iter.data()) // train_iter.batch_size
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         if verbose:
-            pbar = tqdm(total=total_batches)
+            pbar = tqdm(total=len(train_iter.data()) // train_iter.batch_size)
         examples_so_far = 0
         train_loss = 0
         total_correct = 0
+        N = 0
 
         update_ratio = config["hyperparameters"]["true_batch_size"] // config["hyperparameters"]["batch_size"]
         optimizer.zero_grad()
@@ -66,6 +58,9 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             total_correct += self.calculate_correct(pred_logits, batch.stance_label)
             examples_so_far += len(batch.stance_label)
             train_loss += loss.item()
+            N += 1 if not hasattr(lossfunction, "weight") \
+                else sum([lossfunction.weight[k].item() for k in batch.stance_label])
+
             if verbose:
                 pbar.set_description(
                     f"train loss:"
@@ -76,8 +71,9 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             optimizer.step()
             optimizer.zero_grad()
 
-        return train_loss / total_batches, total_correct / examples_so_far
+        return train_loss / N, total_correct / examples_so_far
 
+    @torch.no_grad()
     def predict(self, fname: str, model: torch.nn.Module, dev_iter: Iterator, task="subtaskaenglish"):
         train_flag = model.training
         model.eval()
@@ -102,7 +98,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             model.train()
         logging.info(f"Writing results into {fname}")
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
@@ -279,23 +275,21 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
         model = modelfunc.from_pretrained(self.modeltype, cache_dir="./.BERTcache").to(device)
-        weights = SelfAtt_BertTokenizing_Framework.get_class_weights(train_data.examples, "stance_label", 4,
-                                                                     min_fraction=1)
+        weights = get_class_weights(train_data.examples, "stance_label", 4)
         logger.disabled = False
         model.reinit(config)
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
                              lr=config["hyperparameters"]["learning_rate"])
-        logging.info("class weights")
-        logging.info(f"{str(weights.numpy().tolist())}")
+        # logging.info("class weights")
+        # logging.info(f"{str(weights.numpy().tolist())}")
         lossfunction = torch.nn.CrossEntropyLoss(weight=weights.to(device))
         best_val_loss = math.inf
         best_val_acc = 0
         best_val_F1 = 0
         best_F1_loss, best_loss_F1 = 0, 0
         bestF1_testF1 = 0
-
         bestF1_test_F1s = [0, 0, 0, 0]
         best_val_F1s = [0, 0, 0, 0]
         start_time = time.time()
@@ -307,7 +301,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             early_stop_after = 4  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.train(model, lossfunction, optimizer, train_iter, config)
                 train_loss, train_acc, _, train_F1, train_allF1s = self.validate(model, lossfunction, train_iter,
                                                                                  config,
                                                                                  log_results=False)
@@ -351,6 +345,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
                                    f"_{val_F1:.5f}_L_{validation_loss}_{get_timestamp()}_{socket.gethostname()}.pt")
                         model.to(device)
 
+
                 logging.info(
                     f"Epoch {epoch}, Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
                 logging.info(
@@ -367,9 +362,11 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
         return {
             "best_loss": best_val_loss,
+            "best_acc": best_val_acc,
             "best_F1": best_val_F1,
             "bestF1_loss": best_F1_loss,
             "bestloss_F1": best_loss_F1,
+            "bestACC_testACC": test_acc,
             "bestF1_testF1": bestF1_testF1,
             "val_bestF1_C1F1": best_val_F1s[0],
             "val_bestF1_C2F1": best_val_F1s[1],
@@ -381,14 +378,14 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
             "test_bestF1_C4F1": bestF1_test_F1s[3]
         }
 
+    @torch.no_grad()
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
                  log_results=True):
         train_flag = model.training
         model.eval()
 
-        total_batches = len(dev_iter.data()) // dev_iter.batch_size
         if verbose:
-            pbar = tqdm(total=total_batches)
+            pbar = tqdm(total=len(dev_iter.data()) // dev_iter.batch_size)
         if log_results:
             csvf, writer = self.init_result_logging()
         examples_so_far = 0
@@ -398,6 +395,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
         total_per_level = defaultdict(lambda: 0)
         total_labels = []
         total_preds = []
+        N = 0
         for i, batch in enumerate(dev_iter):
             pred_logits = model(batch)
 
@@ -411,6 +409,8 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
 
             examples_so_far += len(batch.stance_label)
             dev_loss += loss.item()
+            N += 1 if not hasattr(lossfunction, "weight") \
+                else sum([lossfunction.weight[k].item() for k in batch.stance_label])
             if verbose:
                 pbar.set_description(
                     f"dev loss: {dev_loss / (i + 1):.4f}, dev acc: {total_correct / examples_so_far:.4f}")
@@ -441,7 +441,7 @@ class BERT_Framework_Hyperparamopt(Base_Framework):
                                      batch.raw_text[i],
                                      text_s[i]])
 
-        loss, acc = dev_loss / total_batches, total_correct / examples_so_far
+        loss, acc = dev_loss / N, total_correct / examples_so_far
         total_acc_per_level = {depth: total_correct_per_level.get(depth, 0) / total for depth, total in
                                total_per_level.items()}
         F1 = metrics.f1_score(total_labels, total_preds, average="macro")

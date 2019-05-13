@@ -1,3 +1,17 @@
+import json
+import logging
+from collections import Iterator
+
+import torch
+from pytorch_pretrained_bert import BertTokenizer
+from torchtext.data import BucketIterator
+from tqdm import tqdm
+
+from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
+from task_A.frameworks.base_framework import Base_Framework
+from utils.utils import map_stance_label_to_s
+
+
 class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
@@ -6,7 +20,7 @@ class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
         self.tokenizer = BertTokenizer.from_pretrained(self.modeltype, cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)
@@ -65,7 +79,7 @@ class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
         with open(fname, "w") as  answer_file:
             json.dump(answers, answer_file)
         if train_flag:
-            model.train()
+            model.fit()
         logging.info(f"Writing results into {fname}")
 
     def train(self, modelfunc):
@@ -77,11 +91,6 @@ class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
         train_data, sanity_check_data = train_data.split(split_ratio=0.9, stratified=True, strata_field='stance_label')
         dev_data = RumourEval2019Dataset_BERTTriplets(config["dev_data"], fields, self.tokenizer,
                                                       max_length=config["hyperparameters"]["max_length"])
-
-        # torch.manual_seed(5246727901370826861 & ((1 << 63) - 1))
-        # torch.manual_seed(40)
-
-        # 84.1077
 
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
@@ -236,7 +245,7 @@ class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
             early_stop_after = 6  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.train(model, lossfunction, optimizer, train_iter, config)
                 train_loss, train_acc, _, train_F1 = self.validate(model, lossfunction, train_iter, config,
                                                                    log_results=False)
                 sanity_loss, sanity_acc, sanity_acc_per_level, sanity_F1 = self.validate(model, lossfunction,
@@ -364,7 +373,7 @@ class BERT_Framework_Hyperparamopt_WITHSANITY(Base_Framework):
         if log_results:
             self.finalize_results_logging(csvf, loss, F1)
         if train_flag:
-            model.train()
+            model.fit()
         return loss, acc, total_acc_per_level, F1
 
     def finalize_results_logging(self, csvf, loss, f1):

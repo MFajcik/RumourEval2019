@@ -5,26 +5,26 @@ import math
 import os
 import socket
 import time
-from collections import Counter, defaultdict
-
 import torch
 import torch.nn.functional as F
+
+from collections import Counter, defaultdict
 from pytorch_pretrained_bert import BertAdam, BertTokenizer
 from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
-
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
 from task_A.frameworks.base_framework import Base_Framework
-from utils import count_parameters, get_timestamp
+from utils.utils import map_stance_label_to_s
+from utils.utils import count_parameters, get_timestamp
 
-map_stance_label_to_s = {
-    0: "support",
-    1: "comment",
-    2: "deny",
-    3: "query"
-}
-map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
+__author__ = "Martin Fajčík"
+
+"""
+This file contains code for experiments with predicting veracity when taking only source experiments
+
+Result: As expected, model overfits heavily and we did not used these results
+"""
 
 
 class BERT_Framework(Base_Framework):
@@ -34,7 +34,7 @@ class BERT_Framework(Base_Framework):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)
@@ -44,7 +44,11 @@ class BERT_Framework(Base_Framework):
 
         update_ratio = config["hyperparameters"]["true_batch_size"] // config["hyperparameters"]["batch_size"]
         optimizer.zero_grad()
+
+        # This flag controls whether it is time to update gradients
+        # when accumulating the gradients
         updated = False
+
         for i, batch in enumerate(train_iter):
             updated = False
             pred_logits, pred_logits_veracity = model(batch)
@@ -96,11 +100,12 @@ class BERT_Framework(Base_Framework):
 
         with open(fname, "w") as  answer_file:
             json.dump(answers, answer_file)
+
         if train_flag:
             model.train()
         logging.info(f"Writing results into {fname}")
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets_with_Tags.prepare_fields_for_text()
@@ -108,11 +113,6 @@ class BERT_Framework(Base_Framework):
                                                                   max_length=config["hyperparameters"]["max_length"])
         dev_data = RumourEval2019Dataset_BERTTriplets_with_Tags(config["dev_data"], fields, self.tokenizer,
                                                                 max_length=config["hyperparameters"]["max_length"])
-
-        # torch.manual_seed(1570055016034928672 & ((1 << 63) - 1))
-        # torch.manual_seed(40)
-
-        # 84.1077
 
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
@@ -126,27 +126,12 @@ class BERT_Framework(Base_Framework):
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
-        # bert-base-uncased
-        # bert-large-uncased,
-        # bert-base-multilingual-cased
-        # pretrained_model = torch.load(
-        #     "saved/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_ACC_0.83704_2019-01-10_12:14.pt").to(
-        #     device)
-        # model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
-        #                                   state_dict=pretrained_model.state_dict()
-        #                                   ).to(device)
-        # pretrained_model = None
         model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache").to(device)
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
                              lr=config["hyperparameters"]["learning_rate"])
 
-        # No BERT training
-        # optimizer = BertAdam([p[1]
-        #                       for p in model.named_parameters()
-        #                       if p[1].requires_grad and not p[0].startswith("bert.")],
-        #                      lr=config["hyperparameters"]["learning_rate"])
         lossfunction = torch.nn.CrossEntropyLoss()
         start_time = time.time()
         try:
@@ -154,24 +139,23 @@ class BERT_Framework(Base_Framework):
             best_val_acc = 0
             best_val_ver_acc = 0
 
-            # self.predict("answer_BERT_textnsource.json", model, dev_iter)
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
-                log_results = epoch > 5
 
+                train_loss, train_acc = self.train(model, lossfunction, optimizer, train_iter, config)
                 validation_loss, validation_acc, val_acc_per_level, veracity_acc = self.validate(model, lossfunction,
                                                                                                  dev_iter,
                                                                                                  config,
                                                                                                  log_results=False)
                 sorted_val_acc_pl = sorted(val_acc_per_level.items(), key=lambda x: int(x[0]))
+
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
                 if validation_acc > best_val_acc:
                     best_val_acc = validation_acc
-
                 if veracity_acc > best_val_ver_acc:
                     best_val_ver_acc = veracity_acc
+
                 logging.info(
                     f"Epoch {epoch}, Validation loss|acc: {validation_loss:.6f}|{validation_acc:.6f} - (Best {best_val_loss:.4f}|{best_val_acc:4f})")
                 logging.info(

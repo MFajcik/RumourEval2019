@@ -22,7 +22,7 @@ class Text_Feature_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
 
-    def train(self, modelfunc, seed=42):
+    def fit(self, modelfunc, seed=42):
         if seed is not None:
             torch.manual_seed(seed)
 
@@ -123,7 +123,7 @@ class Text_Feature_Framework(Base_Framework):
                 #         disabled = True
                 #    selected_features = "all"
 
-                self.run_epoch(model, lossfunction, optimizer_for_hcrafted, train_iter, config, None)
+                self.train(model, lossfunction, optimizer_for_hcrafted, train_iter, config, None)
 
                 train_loss, train_acc = self.validate(model, lossfunction, train_iter, config,
                                                       None)
@@ -175,7 +175,7 @@ class Text_Feature_Framework(Base_Framework):
     #             pbar.update(1)
     #     return train_loss / train_iter.batch_size, total_correct / examples_so_far
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, selected_features, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, selected_features, verbose=False):
         global step
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:

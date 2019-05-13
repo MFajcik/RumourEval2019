@@ -1,15 +1,23 @@
-import json
-import logging
-from typing import List, Tuple
+__author__ = "Martin Fajčík"
 
+import json
 import torch
 import torchtext as tt
+
+from typing import List, Tuple
 from pytorch_pretrained_bert import BertTokenizer
 from torchtext.data import Example
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+"""
+This file contains implementation of RumourEval2019 datasets extending torchtext.data.Dataset class
+"""
 
 class RumourEval2019Dataset_BERTTriplets(tt.data.Dataset):
+    """
+    Creates dataset, where each example is composed as triplet: (source post, previous post, target post)
+    """
+
     def __init__(self, path: str, fields: List[Tuple[str, tt.data.Field]], tokenizer: BertTokenizer,
                  max_length: int = 512, include_features=False, **kwargs):
         max_length = max_length - 3  # Count without special tokens
@@ -21,8 +29,6 @@ class RumourEval2019Dataset_BERTTriplets(tt.data.Dataset):
             # We will create following input
             # - [CLS] source post, previous post [SEP] choice_1 [SEP]
 
-            # more important parts are towards the end, usually, and they can be truncated
-            # logging.info("Experiment! no SRC text")
             for example in data_json["Examples"]:
                 make_ids = lambda x: tokenizer.convert_tokens_to_ids(tokenizer.tokenize(x))
                 text = make_ids(example["spacy_processed_text"])
@@ -47,9 +53,8 @@ class RumourEval2019Dataset_BERTTriplets(tt.data.Dataset):
 
                 segment_ids = [0] * (len(segment_A) + 2) + [1] * (len(segment_B) + 1)
                 input_mask = [1] * len(segment_ids)
-                # example_list = list(example.values())[:-3] + [text_ids, segment_ids]
                 if include_features:
-                    example_list = list(example.values()) + [text_ids, segment_ids,input_mask]
+                    example_list = list(example.values()) + [text_ids, segment_ids, input_mask]
                 else:
                     sentiment = sentiment_analyser.polarity_scores(example["raw_text"])
                     example_list = [example["id"], example["branch_id"], example["tweet_id"], example["stance_label"],
@@ -57,7 +62,7 @@ class RumourEval2019Dataset_BERTTriplets(tt.data.Dataset):
                                     "\n-----------\n".join(
                                         [example["raw_text_src"], example["raw_text_prev"], example["raw_text"]]),
                                     example["issource"], sentiment["pos"], sentiment["neu"], sentiment["neg"]] + [
-                                       text_ids, segment_ids,input_mask]
+                                       text_ids, segment_ids, input_mask]
 
                 examples.append(Example.fromlist(example_list, fields))
             super(RumourEval2019Dataset_BERTTriplets, self).__init__(examples, fields, **kwargs)
@@ -140,6 +145,11 @@ class RumourEval2019Dataset_BERTTriplets(tt.data.Dataset):
 
 
 class RumourEval2019Dataset_BERTTriplets_with_Tags(tt.data.Dataset):
+    """
+    Creates dataset similar to RumourEval2019Dataset_BERTTriplets, but this one also contains
+    word-level POS/NER/DEP tags
+    """
+
     def __init__(self, path: str, fields: List[Tuple[str, tt.data.Field]], tokenizer: BertTokenizer,
                  max_length: int = 512, include_features=False, **kwargs):
         max_length = max_length - 3  # Count without special tokens
@@ -160,7 +170,7 @@ class RumourEval2019Dataset_BERTTriplets_with_Tags(tt.data.Dataset):
                     word_tokens = text.split()
                     ids_mapping = {i: make_ids(w) for i, w in enumerate(word_tokens)}
                     ids = []
-                    for subwordindices in ids_mapping.values(): ids+=subwordindices
+                    for subwordindices in ids_mapping.values(): ids += subwordindices
                     return ids_mapping, ids
 
                 text_mapping, text = make_ids_with_mapping(example["spacy_processed_text"])
@@ -173,7 +183,7 @@ class RumourEval2019Dataset_BERTTriplets_with_Tags(tt.data.Dataset):
                            [tokenizer.vocab["[SEP]"]] + segment_B + [tokenizer.vocab["[SEP]"]]
 
                 NER_segment_B = []
-                for k,v in text_mapping.items():
+                for k, v in text_mapping.items():
                     for id in v: NER_segment_B.append(example['spacy_processed_NERvec'][k])
 
                 DEP_segment_B = []
@@ -201,13 +211,13 @@ class RumourEval2019Dataset_BERTTriplets_with_Tags(tt.data.Dataset):
                         DEP_segment_B = DEP_segment_B[:max_length // 2]
                         POS_segment_B = POS_segment_B[:max_length // 2]
 
-                NER_mask_ids = [0] * (len(segment_A) + 2)+NER_segment_B+[0]
-                DEP_mask_ids = [0] * (len(segment_A) + 2)+DEP_segment_B+[0]
-                POS_mask_ids = [0] * (len(segment_A) + 2)+POS_segment_B+[0]
+                NER_mask_ids = [0] * (len(segment_A) + 2) + NER_segment_B + [0]
+                DEP_mask_ids = [0] * (len(segment_A) + 2) + DEP_segment_B + [0]
+                POS_mask_ids = [0] * (len(segment_A) + 2) + POS_segment_B + [0]
                 segment_ids = [0] * (len(segment_A) + 2) + [1] * (len(segment_B) + 1)
                 # example_list = list(example.values())[:-3] + [text_ids, segment_ids]
                 if include_features:
-                    example_list = list(example.values()) + [text_ids, segment_ids,NER_mask_ids]
+                    example_list = list(example.values()) + [text_ids, segment_ids, NER_mask_ids]
                 else:
                     sentiment = sentiment_analyser.polarity_scores(example["raw_text"])
                     example_list = [example["id"], example["branch_id"], example["tweet_id"], example["stance_label"],
@@ -215,7 +225,7 @@ class RumourEval2019Dataset_BERTTriplets_with_Tags(tt.data.Dataset):
                                     "\n-----------\n".join(
                                         [example["raw_text_src"], example["raw_text_prev"], example["raw_text"]]),
                                     example["issource"], sentiment["pos"], sentiment["neu"], sentiment["neg"]] + [
-                                       text_ids, segment_ids,NER_mask_ids,DEP_mask_ids,POS_mask_ids]
+                                       text_ids, segment_ids, NER_mask_ids, DEP_mask_ids, POS_mask_ids]
 
                 examples.append(Example.fromlist(example_list, fields))
             super(RumourEval2019Dataset_BERTTriplets_with_Tags, self).__init__(examples, fields, **kwargs)
@@ -299,8 +309,12 @@ class RumourEval2019Dataset_BERTTriplets_with_Tags(tt.data.Dataset):
         ]
 
 
-# Did not seem to make difference
 class RumourEval2019Dataset_BERTTriplets_3Segments(tt.data.Dataset):
+    """
+        Creates dataset similar to RumourEval2019Dataset_BERTTriplets, but this one
+        separates src text and prev text via [SEP] token and different segment embedding
+    """
+
     def __init__(self, path: str, fields: List[Tuple[str, tt.data.Field]], tokenizer: BertTokenizer,
                  max_length: int = 512, include_features=False, **kwargs):
         max_length = max_length - 3  # Count without special tokens
@@ -311,9 +325,6 @@ class RumourEval2019Dataset_BERTTriplets_3Segments(tt.data.Dataset):
             # Each input needs  to have at most 2 segments
             # We will create following input
             # - [CLS] source post, previous post [SEP] choice_1 [SEP]
-
-            # TODO: try reverting order of sentences
-            # more important parts are towards the end, usually, and they can be truncated
 
             for example in data_json["Examples"]:
                 make_ids = lambda x: tokenizer.convert_tokens_to_ids(tokenizer.tokenize(x))

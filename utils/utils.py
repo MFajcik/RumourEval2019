@@ -1,14 +1,32 @@
-import math
-import socket
-
 __author__ = "Martin Fajčík"
 
+import math
+import socket
+import torch
 import datetime
 import logging
 import logging.config
 import os
-
 import yaml
+
+from collections import Iterable
+
+
+class LevelOnly(object):
+    levels = {
+        "CRITICAL": 50,
+        "ERROR": 40,
+        "WARNING": 30,
+        "INFO": 20,
+        "DEBUG": 10,
+        "NOTSET": 0,
+    }
+
+    def __init__(self, level):
+        self.__level = self.levels[level]
+
+    def filter(self, logRecord):
+        return logRecord.levelno <= self.__level
 
 
 def setup_logging(
@@ -33,7 +51,7 @@ def setup_logging(
     if not os.path.exists(os.path.dirname(logpath)):
         os.makedirs(os.path.dirname(logpath))
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    stamp = timestamp+ "_"+socket.gethostname() + "_" + extra_name
+    stamp = timestamp + "_" + socket.gethostname() + "_" + extra_name
 
     path = config_path if config_path is not None else os.getenv(env_key, None)
     if path is not None and os.path.exists(path):
@@ -48,7 +66,7 @@ def setup_logging(
                     f['()'] = globals()[f['()']]
             logging.config.dictConfig(config)
     else:
-        logging.basicConfig(level=default_level, filename=os.path.join(logpath,stamp ))
+        logging.basicConfig(level=default_level, filename=os.path.join(logpath, stamp))
 
 
 def get_timestamp():
@@ -109,23 +127,6 @@ def touch(f):
     open(f, 'a').close()
 
 
-class LevelOnly(object):
-    levels = {
-        "CRITICAL": 50,
-        "ERROR": 40,
-        "WARNING": 30,
-        "INFO": 20,
-        "DEBUG": 10,
-        "NOTSET": 0,
-    }
-
-    def __init__(self, level):
-        self.__level = self.levels[level]
-
-    def filter(self, logRecord):
-        return logRecord.levelno <= self.__level
-
-
 class DotDict(dict):
     """
     A dictionary with dot notation for key indexing
@@ -174,10 +175,42 @@ def totext(batch, vocab, batch_first=True, remove_specials=False, check_for_zero
     return textlist
 
 
-def dumpbatch(batch, vocab):
+def dump_detokenize_batch(batch, vocab):
     print("*" * 100)
     print('\n'.join(totext(batch.spacy_processed_text, vocab)))
 
 
+def dump_batch_str(batch):
+    logging.debug("#" * 30)
+    logging.debug("Dumping batch contents")
+    for i in range(batch.text.shape[0]):
+        logging.debug(f"L:{len(batch.text[i])} T: {batch.raw_text[i]}")
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def get_class_weights(examples: Iterable, label_field_name: str, classes: int) -> torch.FloatTensor:
+    """
+    Calculate class weight in order to enforce a flat prior
+    :param examples:  data examples
+    :param label_field_name: a name of label attribute of the field (if e is an Example and a name is "label",
+           e.label will be reference to access label value
+    :param classes: number of classes
+    :return: an array of class weights (cast as torch.FloatTensor)
+    """
+    arr = torch.zeros(classes)
+    for e in examples:
+        arr[int(getattr(e, label_field_name))] += 1
+
+    arrmax = arr.max().expand(classes)
+    return arrmax / arr
+
+
+map_stance_label_to_s = {
+    0: "support",
+    1: "comment",
+    2: "deny",
+    3: "query"
+}
+map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}

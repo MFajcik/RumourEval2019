@@ -7,6 +7,7 @@ from torchtext.data import Example
 
 
 class RumourEval2019Dataset_Seq(tt.data.Dataset):
+    # empty examples are excluded from this dataset
     empty_examples = ['d0t6et0',
                       'd0st6p1',
                       'd0t7f9d',

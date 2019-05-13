@@ -21,14 +21,6 @@ from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTri
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
 
-map_stance_label_to_s = {
-    0: "support",
-    1: "comment",
-    2: "deny",
-    3: "query"
-}
-map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
-
 # this is a list of best ensemble predictions
 # found via find_best_ensemble_greedy method from ensemble_helper.py
 found_best_ensemble = [
@@ -168,7 +160,7 @@ class Ensemble_Framework(Base_Framework):
             #     f"Validation loss|acc|F1|BEST: {loss:.6f}|{acc:.6f}|{F1:.6f} || {best_F1} || ")
         return best_F1, best_distribution
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
@@ -482,7 +474,7 @@ class Ensemble_Framework(Base_Framework):
 
         for train_flag in train_flags:
             if train_flag:
-                model.train()
+                model.fit()
         return loss, acc, total_acc_per_level, F1
 
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,

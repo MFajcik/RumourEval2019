@@ -33,7 +33,7 @@ class Feature_Framework_Seq(Base_Framework):
                                                            torch.cuda.is_available() else "cpu")) \
             .unsqueeze(0)
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_Seq.prepare_fields()
@@ -77,7 +77,7 @@ class Feature_Framework_Seq(Base_Framework):
             best_val_loss = math.inf
             best_val_acc = 0
             for epoch in range(config["hyperparameters"]["epochs"]):
-                train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                train_loss, train_acc = self.train(model, lossfunction, optimizer, train_iter, config)
                 validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config)
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
@@ -95,7 +95,7 @@ class Feature_Framework_Seq(Base_Framework):
         finally:
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)

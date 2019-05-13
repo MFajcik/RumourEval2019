@@ -1,51 +1,39 @@
+__author__ = "Martin Fajčík"
+
+import json
+import random
 import logging
 import math
 import time
-from collections import defaultdict
-
 import torch
+import torch.nn.functional as F
+
 from sklearn import metrics
 from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
-
+from collections import defaultdict, Callable, Counter
 from neural_bag.modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_Branches import RumourEval2019Dataset_Branches
 from utils.utils import count_parameters, get_timestamp
-import torch.nn.functional as F
-__author__ = "Martin Fajčík"
-
-step = 0
 
 
-# FIXME: learn special embedding tokens
-# RNN baseline (Best 2.1256|0.854494) drop 0.6, FC 2, fc_size 300
-# No RNN base (Best 2.1018|0.857347)
-# textonly  (Best 3.6824|0.690799)
-# textonly
-# textonly + embopt (Best 3.9955|0.676177)
-
-# textonly 0.714337 after text preprocessing
 class Base_Framework:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, save_treshold=0.45):
         self.config = config
-        self.save_treshold = 999
+        self.save_treshold = save_treshold
+        self.saveruns = False  # do not save if not explicitly stated
 
     def build_dataset(self, path, fields):
         return RumourEval2019Dataset_Branches(path, fields), {k: v for k, v in fields}
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_Branches.prepare_fields(self.config["hyperparameters"]["sep_token"])
         train_data, train_fields = self.build_dataset(config["train_data"], fields)
         dev_data, dev_fields = self.build_dataset(config["dev_data"], fields)
 
-        # torch.manual_seed(42)
-
-        # No need to build vocab for baseline
-        # but fo future work I wrote RumourEval2019Dataset that
-        # requires vocab to be build
         build_vocab = lambda field, *data: RumourEval2019Dataset_Branches.build_vocab(field,
                                                                                       self.config["hyperparameters"][
                                                                                           "sep_token"],
@@ -53,21 +41,18 @@ class Base_Framework:
                                                                                       vectors=config["embeddings"],
                                                                                       vectors_cache=config[
                                                                                           "vector_cache"])
-        # FIXME: add dev vocab to model's vocab
-        # 14833 together
-        # 11809 words in train
-        # 6450 words in dev
         build_vocab(train_fields['spacy_processed_text'], train_data, dev_data)
         self.vocab = train_fields['spacy_processed_text'].vocab
-
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
 
-        create_iter = lambda data: BucketIterator(data, sort_key=lambda x: len(x.stance_labels), sort=True,
-                                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-                                                  device=device)
-        train_iter = create_iter(train_data)
-        dev_iter = create_iter(dev_data)
+        train_iter = BucketIterator(train_data,  # sort_key=lambda x: -len(x.text), sort=True,
+                                    shuffle=True,
+                                    batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                    device=device)
+        dev_iter = BucketIterator(train_data, sort_key=lambda x: -len(x.text), sort=True,
+                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                  device=device)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
@@ -79,6 +64,8 @@ class Base_Framework:
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
                                      lr=config["hyperparameters"]["learning_rate"],
                                      betas=[0.9, 0.999], eps=1e-8)
+
+        # hardcoded weights precalculated for RumourEval 2019 train data
         lossfunction = torch.nn.CrossEntropyLoss(
             weight=torch.Tensor([3.8043243885040283, 1.0, 9.309523582458496, 8.90886116027832]).to(device))
         start_time = time.time()
@@ -87,7 +74,7 @@ class Base_Framework:
             best_val_acc = 0
             best_val_F1 = 0
             for epoch in range(config["hyperparameters"]["epochs"]):
-                train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.train(model, lossfunction, optimizer, train_iter, config)
                 val_F1, validation_loss, validation_acc = self.validate(model, lossfunction, dev_iter, config)
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
@@ -106,7 +93,7 @@ class Base_Framework:
         finally:
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)
@@ -154,6 +141,30 @@ class Base_Framework:
         print(f"Total unique examples {valid_examples}")
         return train_loss / train_iter.batch_size, total_correct / examples_so_far
 
+    def fit_multiple(self, modelfunc: Callable, trials: int = 20):
+        """
+        Runs training multiple times and prints the average statistics
+        :param modelfunc: model constructor
+        :param trials: number of times to run the model
+        """
+
+        results = []
+        for i in range(trials):
+            torch.manual_seed(random.randint(1, 1e8))
+            results.append(self.fit(modelfunc))
+        logging.info("Results:")
+        for i in range(trials):
+            logging.info(f"{i} :{json.dumps(results[i])}")
+
+        logging.info("*" * 20 + "AVG" + "*" * 20)
+        avg = Counter(results[0])
+        for i in range(1, trials): avg += Counter(results[i])
+        for key in avg:
+            avg[key] /= trials
+        logging.info(json.dumps(avg))
+        logging.info("*" * 20 + "AVG ends" + "*" * 20)
+
+    @torch.no_grad()
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False):
         train_flag = model.training
         model.eval()

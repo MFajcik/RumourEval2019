@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets_with_Tags
 from task_A.frameworks.base_framework import Base_Framework
-from task_A.frameworks.bert_framework import map_stance_label_to_s
+from utils.utils import setup_logging, map_stance_label_to_s
 from utils.utils import count_parameters, get_timestamp
 
 
@@ -28,7 +28,7 @@ class BERT_Framework_with_f(Base_Framework):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)
@@ -66,7 +66,7 @@ class BERT_Framework_with_f(Base_Framework):
 
         return train_loss / total_batches, total_correct / examples_so_far
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets_with_Tags.prepare_fields_for_f_and_text()
@@ -93,19 +93,7 @@ class BERT_Framework_with_f(Base_Framework):
         dev_iter = create_iter(dev_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
-
-        # bert-base-uncased
-        # bert-large-uncased,
-        # bert-base-multilingual-cased
         model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache").to(device)
-        # pretrained_model = torch.load(
-        #     "saved/checkpoint_<class 'task_A.frameworks.bert_framework_with_f.BERT_Framework_with_f'>_ACC_0.83434_2019-01-11_14:23.pt").to(
-        #     device)
-        # model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
-        #                                   state_dict=pretrained_model.state_dict()
-        #                                   ).to(device)
-
-
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
 
@@ -138,7 +126,7 @@ class BERT_Framework_with_f(Base_Framework):
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
                 #optimizer = optimizerA if epoch > 1 else optimizerB
-                train_loss, train_acc = self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                train_loss, train_acc = self.train(model, lossfunction, optimizer, train_iter, config)
                 log_results = epoch > 5
 
                 validation_loss, validation_acc, val_acc_per_level = self.validate(model, lossfunction, dev_iter,

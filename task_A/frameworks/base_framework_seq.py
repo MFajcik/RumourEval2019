@@ -18,7 +18,7 @@ from tqdm import tqdm
 from neural_bag.modelutils import glorot_param_init
 from task_A.datasets.RumourEvalDataset_Seq import RumourEval2019Dataset_Seq
 from task_A.frameworks.base_framework import Base_Framework
-from task_A.frameworks.bert_framework import map_stance_label_to_s
+from utils.utils import setup_logging, map_stance_label_to_s
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
 from utils.utils import count_parameters, get_timestamp
 
@@ -40,7 +40,7 @@ class Base_Framework_SEQ(Base_Framework):
     def build_dataset(self, path, fields):
         return RumourEval2019Dataset_Seq(path, fields), {k: v for k, v in fields}
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)
@@ -103,11 +103,12 @@ class Base_Framework_SEQ(Base_Framework):
                                      lr=config["hyperparameters"]["learning_rate"],
                                      betas=[0.9, 0.999], eps=1e-8)
 
-        weights = SelfAtt_BertTokenizing_Framework.get_class_weights(train_data.examples, "stance_label", 4,
-                                                                     min_fraction=1)
-        logging.info("class weights")
-        logging.info(f"{str(weights.numpy().tolist())}")
-        lossfunction = torch.nn.CrossEntropyLoss(weight=weights.to(device))
+        # weights = SelfAtt_BertTokenizing_Framework.get_class_weights(train_data.examples, "stance_label", 4,
+        #                                                              min_fraction=1)
+        # logging.info("class weights")
+        # logging.info(f"{str(weights.numpy().tolist())}")
+        # lossfunction = torch.nn.CrossEntropyLoss(weight=weights.to(device))
+        lossfunction = torch.nn.CrossEntropyLoss()
         # # With L1
         # def CE_wL1(preds, labels, lmb=0.01):
         #     def L1(model):
@@ -135,7 +136,7 @@ class Base_Framework_SEQ(Base_Framework):
             early_stop_after = 8  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.train(model, lossfunction, optimizer, train_iter, config)
                 train_loss, train_acc, _, train_F1, train_allF1s = self.validate(model, lossfunction, train_iter,
                                                                                  config,
                                                                                  log_results=False)
@@ -160,9 +161,6 @@ class Base_Framework_SEQ(Base_Framework):
 
                 if validation_acc > best_val_acc:
                     best_val_acc = validation_acc
-
-                if val_F1 > best_val_F1:
-                    best_val_F1 = val_F1
                     best_F1_loss = validation_loss
                     best_val_F1s = val_allF1s
                     test_loss, test_acc, test_acc_per_level, bestF1_testF1, bestF1_test_F1s = self.validate(model,
@@ -178,6 +176,10 @@ class Base_Framework_SEQ(Base_Framework):
                                    f"saved/BIG_checkpoint_{str(self.__class__)}_F1"
                                    f"_{val_F1:.5f}_L_{validation_loss}_{get_timestamp()}_{socket.gethostname()}.pt")
                         model.to(device)
+
+                if val_F1 > best_val_F1:
+                    best_val_F1 = val_F1
+
 
                 logging.info(
                     f"Epoch {epoch}, Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
@@ -195,9 +197,11 @@ class Base_Framework_SEQ(Base_Framework):
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
         return {
             "best_loss": best_val_loss,
+            "best_acc": best_val_acc,
             "best_F1": best_val_F1,
             "bestF1_loss": best_F1_loss,
             "bestloss_F1": best_loss_F1,
+            "bestACC_testACC": test_acc,
             "bestF1_testF1": bestF1_testF1,
             "val_bestF1_C1F1": best_val_F1s[0],
             "val_bestF1_C2F1": best_val_F1s[1],
@@ -209,7 +213,7 @@ class Base_Framework_SEQ(Base_Framework):
             "test_bestF1_C4F1": bestF1_test_F1s[3]
         }
 
-    def train(self, modelfunc, trials=20):
+    def fit(self, modelfunc, trials=20):
         results = []
         for i in range(trials):
             torch.manual_seed(random.randint(1, 1e8))

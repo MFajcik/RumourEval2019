@@ -22,7 +22,7 @@ class Text_Feature_Framework(Base_Framework):
     def __init__(self, config: dict):
         super().__init__(config)
 
-    def train(self, modelfunc, seed=42):
+    def fit(self, modelfunc, seed=42):
         if seed is not None:
             torch.manual_seed(seed)
 
@@ -65,7 +65,7 @@ class Text_Feature_Framework(Base_Framework):
 
         # glorot_param_init(model)
         model = torch.load(f"saved/submodel_2_pretrained_2018-12-13_13:35.pt")
-        model.train()
+        model.fit()
 
         logging.info(f"Model has {count_parameters(model)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
@@ -150,7 +150,7 @@ class Text_Feature_Framework(Base_Framework):
                     disabled = True
 
                 #selected_features = "all"
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config,
+                self.train(model, lossfunction, optimizer, train_iter, config,
                                "all")
                 # train_loss, train_acc = self.validate(model, lossfunction, train_iter, config,
                 #                                       selected_features)
@@ -202,7 +202,7 @@ class Text_Feature_Framework(Base_Framework):
     #             pbar.update(1)
     #     return train_loss / train_iter.batch_size, total_correct / examples_so_far
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, selected_features, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, selected_features, verbose=False):
         global step
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:

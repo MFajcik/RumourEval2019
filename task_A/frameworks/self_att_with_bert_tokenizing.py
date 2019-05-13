@@ -1,68 +1,54 @@
+__author__ = "Martin Fajčík"
+
 import csv
 import json
 import logging
 import math
 import os
-import random
 import socket
 import time
-from collections import Counter, defaultdict
-from typing import Iterable
-
 import torch
 import torch.nn.functional as F
 import xlsxwriter
+
+from collections import Counter, defaultdict
 from pytorch_pretrained_bert import BertAdam, BertTokenizer
 from sklearn import metrics
 from torch.nn.modules.loss import _Loss
 from torchtext.data import BucketIterator, Iterator
 from tqdm import tqdm
-
 from task_A.datasets.RumourEvalDataset_BERT import RumourEval2019Dataset_BERTTriplets
 from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.text_framework_branch import Text_Framework
 from task_A.frameworks.text_framework_seq import Text_Framework_Seq
-from utils.utils import count_parameters, get_timestamp
-
-map_stance_label_to_s = {
-    0: "support",
-    1: "comment",
-    2: "deny",
-    3: "query"
-}
-map_s_to_label_stance = {y: x for x, y in map_stance_label_to_s.items()}
+from utils.utils import count_parameters, get_timestamp, map_stance_label_to_s, get_class_weights
 
 
 class SelfAtt_BertTokenizing_Framework(Base_Framework):
-    @staticmethod
-    def get_class_weights(examples: Iterable, fieldname: str, classes: int, min_fraction=1) -> torch.FloatTensor:
-        arr = torch.zeros(classes)
-        for e in examples:
-            arr[int(getattr(e, fieldname))] += 1
+    """
+    This framework runs model based on BiLSTM+SelfAttention using embeddings obtained via BERT pretraining.
+    In our paper, we refer to this model as to "BiLSTM+SelfAtt"
+    """
 
-        # m = arr.max().item()
-        # arr += (m // min_fraction) + 1  # Numerical stability
-        arrmax = arr.max().expand(classes)
-        return arrmax / arr
+    def __init__(self, config: dict, save_treshold: int = 0.46):
+        super().__init__(config, save_treshold)
+        self.init_tokenizer()
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-        self.save_treshold = 0.83
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
+    def init_tokenizer(self):
+        self.tokenizer = BertTokenizer.from_pretrained(self.config["variant"], cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
-        total_batches = len(train_iter.data()) // train_iter.batch_size
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         if verbose:
-            pbar = tqdm(total=total_batches)
+            pbar = tqdm(total=len(train_iter.data()) // train_iter.batch_size)
         examples_so_far = 0
         train_loss = 0
         total_correct = 0
+        N = 0
 
         optimizer.zero_grad()
         for i, batch in enumerate(train_iter):
             pred_logits, attention = model(batch)
-
             loss = lossfunction(pred_logits, batch.stance_label)
             loss.backward()
 
@@ -72,16 +58,17 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
             total_correct += self.calculate_correct(pred_logits, batch.stance_label)
             examples_so_far += len(batch.stance_label)
             train_loss += loss.item()
+            N += 1 if not hasattr(lossfunction, "weight") \
+                else sum([lossfunction.weight[k].item() for k in batch.stance_label])
             if verbose:
-                # This is just to the loss rises
-                # Dropout destroys true loss/accuracy
                 pbar.set_description(
                     f"train loss:"
                     f" {train_loss / (i + 1):.4f}, train acc: {total_correct / examples_so_far:.4f}")
                 pbar.update(1)
 
-        return train_loss / total_batches, total_correct / examples_so_far
+        return train_loss / N, total_correct / examples_so_far
 
+    @torch.no_grad()
     def predict(self, fname: str, model: torch.nn.Module, dev_iter: Iterator, task="subtaskaenglish"):
         train_flag = model.training
         model.eval()
@@ -106,7 +93,7 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
             model.train()
         logging.info(f"Writing results into {fname}")
 
-    def runtraining(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets.prepare_fields_for_text()
@@ -117,70 +104,52 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
         test_data = RumourEval2019Dataset_BERTTriplets(config["test_data"], fields, self.tokenizer,
                                                        max_length=config["hyperparameters"]["max_length"])
 
-        # torch.manual_seed(5246727901370826861 & ((1 << 63) - 1))
-        # torch.manual_seed(40)
-
-        # 84.1077
-
         device = torch.device("cuda:0" if config['cuda'] and
                                           torch.cuda.is_available() else "cpu")
 
-        create_iter = lambda data: BucketIterator(data, sort_key=lambda x: -len(x.text), sort=True,
-                                                  # shuffle=True,
-                                                  batch_size=config["hyperparameters"]["batch_size"], repeat=False,
-                                                  device=device)
-        train_iter = create_iter(train_data)
-        dev_iter = create_iter(dev_data)
-        test_iter = create_iter(test_data)
+        train_iter = BucketIterator(train_data, sort_key=lambda x: -len(x.text), sort=True,
+                                    shuffle=False,
+                                    batch_size=config["hyperparameters"]["batch_size"], repeat=False,
+                                    device=device)
+        create_noshuffle_iter = lambda data: BucketIterator(data, sort_key=lambda x: -len(x.text), sort=True,
+                                                            shuffle=False,
+                                                            batch_size=config["hyperparameters"]["batch_size"],
+                                                            repeat=False,
+                                                            device=device)
+        dev_iter = create_noshuffle_iter(dev_data)
+        test_iter = create_noshuffle_iter(test_data)
 
         logging.info(f"Train examples: {len(train_data.examples)}\nValidation examples: {len(dev_data.examples)}")
 
-        # bert-base-uncased
-        # bert-large-uncased,
-        # bert-base-multilingual-cased
-        # pretrained_model = torch.load(
-        #     "saved/checkpoint_<class 'task_A.frameworks.bert_framework.BERT_Framework'>_ACC_0.83704_2019-01-10_12:14.pt").to(
-        #     device)
-        # model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
-        #                                   state_dict=pretrained_model.state_dict()
-        #                                   ).to(device)
-        # pretrained_model = None
-        model = modelfunc.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache")
+        model = modelfunc.from_pretrained(self.config["variant"], cache_dir="./.BERTcache")
         model.extra_init(config, self.tokenizer)
         model = model.to(device)
         logging.info(f"Model has {count_parameters(model) - count_parameters(model.bert)} trainable parameters.")
         logging.info(f"Manual seed {torch.initial_seed()}")
         optimizer = BertAdam(filter(lambda p: p.requires_grad, model.parameters()),
-                             # t_total = 1000,warmup=0.5,
                              lr=config["hyperparameters"]["learning_rate"])
 
-        # No BERT training
-        # optimizer = BertAdam([p[1]
-        #                       for p in model.named_parameters()
-        #                       if p[1].requires_grad and not p[0].startswith("bert.")],
-        #                      lr=config["hyperparameters"]["learning_rate"])
-        weights = self.__class__.get_class_weights(train_data.examples, "stance_label", 4, min_fraction=1)
-
-        logging.info("class weights")
-        logging.info(f"{str(weights.numpy().tolist())}")
+        weights = get_class_weights(train_data.examples, "stance_label", 4)
         lossfunction = torch.nn.CrossEntropyLoss(weight=weights.to(device))
+
         start_time = time.time()
         best_val_loss = math.inf
         best_val_acc = 0
         best_val_F1 = 0
         best_F1_loss, best_loss_F1 = 0, 0
         bestF1_testF1 = 0
+        bestF1_testacc = 0
         bestF1_test_F1s = [0, 0, 0, 0]
         best_val_F1s = [0, 0, 0, 0]
         start_time = time.time()
         try:
 
             # self.predict("answer_BERT_textnsource.json", model, dev_iter)
-            best_val_los_epoch = -1
+            best_val_loss_epoch = -1
             early_stop_after = 4  # steps
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.train(model, lossfunction, optimizer, train_iter, config)
                 train_loss, train_acc, _, train_F1, train_allF1s = self.validate(model, lossfunction, train_iter,
                                                                                  config,
                                                                                  log_results=False)
@@ -192,7 +161,7 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
                 saved = False
                 if validation_loss < best_val_loss:
                     best_val_loss = validation_loss
-                    best_val_los_epoch = epoch
+                    best_val_loss_epoch = epoch
                     best_loss_F1 = val_F1
                     if val_F1 > self.save_treshold and self.saveruns:
                         # Map to CPU before saving, because this requires additional memory /for some reason/
@@ -206,16 +175,16 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
                 if validation_acc > best_val_acc:
                     best_val_acc = validation_acc
 
+
                 if val_F1 > best_val_F1:
                     best_val_F1 = val_F1
                     best_F1_loss = validation_loss
                     best_val_F1s = val_allF1s
-                    test_loss, test_acc, test_acc_per_level, bestF1_testF1, bestF1_test_F1s = self.validate(model,
-                                                                                                            lossfunction,
-                                                                                                            test_iter,
-                                                                                                            config,
-                                                                                                            log_results=False)
-
+                    test_loss, bestF1_testacc, test_acc_per_level, bestF1_testF1, bestF1_test_F1s = self.validate(model,
+                                                                                                                  lossfunction,
+                                                                                                                  test_iter,
+                                                                                                                  config,
+                                                                                                                  log_results=val_F1 > 0.46)
                     if val_F1 > self.save_treshold and not saved and self.saveruns:
                         # Map to CPU before saving, because this requires additional memory /for some reason/
                         model.to(torch.device("cpu"))
@@ -228,9 +197,9 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
                     f"Epoch {epoch}, Training loss|acc|F1: {train_loss:.6f}|{train_acc:.6f}|{train_F1:.6f}")
                 logging.info(
                     f"Epoch {epoch}, Validation loss|acc|F1: {validation_loss:.6f}|{validation_acc:.6f}|{val_F1:.6f} - "
-                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1}|{bestF1_testF1})")
+                    f"(Best {best_val_loss:.4f}|{best_val_acc:4f}|{best_val_F1})\n Best Test F1 - {bestF1_testF1}")
 
-                if validation_loss > best_val_loss and epoch > best_val_los_epoch + early_stop_after:
+                if validation_loss > best_val_loss and epoch > best_val_loss_epoch + early_stop_after:
                     logging.info("Early stopping...")
                     break
         except KeyboardInterrupt:
@@ -240,9 +209,11 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
             logging.info(f'Finished after {(time.time() - start_time) / 60} minutes.')
         return {
             "best_loss": best_val_loss,
+            "best_acc": best_val_acc,
             "best_F1": best_val_F1,
             "bestF1_loss": best_F1_loss,
             "bestloss_F1": best_loss_F1,
+            "bestACC_testACC": bestF1_testacc,
             "bestF1_testF1": bestF1_testF1,
             "val_bestF1_C1F1": best_val_F1s[0],
             "val_bestF1_C2F1": best_val_F1s[1],
@@ -254,23 +225,7 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
             "test_bestF1_C4F1": bestF1_test_F1s[3]
         }
 
-    def train(self, modelfunc, trials=20):
-        results = []
-        for i in range(trials):
-            torch.manual_seed(random.randint(1, 1e8))
-            results.append(self.runtraining(modelfunc))
-        logging.info("Results:")
-        for i in range(trials):
-            logging.info(f"{i} :{json.dumps(results[i])}")
-
-        logging.info("*" * 20 + "AVG" + "*" * 20)
-        avg = Counter(results[0])
-        for i in range(1, trials): avg += Counter(results[i])
-        for key in avg:
-            avg[key] /= trials
-        logging.info(json.dumps(avg))
-        logging.info("*" * 20 + "AVG ends" + "*" * 20)
-
+    @torch.no_grad()
     def validate(self, model: torch.nn.Module, lossfunction: _Loss, dev_iter: Iterator, config: dict, verbose=False,
                  log_results=True):
         train_flag = model.training
@@ -312,6 +267,7 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
             total_labels += list(batch.stance_label.cpu().numpy())
 
             if log_results:
+                id_s = batch.tweet_id
                 text_s = [' '.join(self.tokenizer.convert_ids_to_tokens(batch.text[i].cpu().numpy())) for i in
                           range(batch.text.shape[0])]
                 pred_s = list(argmaxpreds.cpu().numpy())
@@ -324,12 +280,12 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
                     target_s) == len(prob_s)
                 global row
                 for i in range(len(text_s)):
-                    writer.writerow([correct_s[i],
+                    writer.writerow([id_s[i], correct_s[i],
                                      map_stance_label_to_s[target_s[i]],
                                      map_stance_label_to_s[pred_s[i]],
                                      prob_s[i],
                                      text_s[i]])
-                    res = [correct_s[i],
+                    res = [id_s[i], correct_s[i],
                            map_stance_label_to_s[target_s[i]],
                            map_stance_label_to_s[pred_s[i]],
                            prob_s[i]]
@@ -370,40 +326,37 @@ class SelfAtt_BertTokenizing_Framework(Base_Framework):
         F1 = metrics.f1_score(total_labels, total_preds, average="macro")
         allF1s = metrics.f1_score(total_labels, total_preds, average=None).tolist()
         if log_results:
-            self.finalize_results_logging(csvf, workbook, acc, loss)
+            self.finalize_results_logging(csvf, workbook, F1, loss)
         if train_flag:
             model.train()
         return loss, acc, total_acc_per_level, F1, allF1s
 
-    def finalize_results_logging(self, csvf, workbook, acc, loss):
+    def finalize_results_logging(self, csvf, workbook, score, loss):
         csvf.close()
         workbook.close()
 
         os.rename(self.TMP_FNAME + ".tsv", f"introspection/introspection"
-        f"_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}_{socket.gethostname()}.tsv", )
+        f"_{str(self.__class__)}_A{score:.6f}_L{loss:.6f}_{socket.gethostname()}.tsv", )
         os.rename(self.TMP_FNAME + ".xlsx", f"introspection/introspection"
-        f"_{str(self.__class__)}_A{acc:.6f}_L{loss:.6f}_{socket.gethostname()}.xlsx", )
+        f"_{str(self.__class__)}_A{score:.6f}_L{loss:.6f}_{socket.gethostname()}.xlsx", )
 
-    RESULT_HEADER = ["Correct",
-                     "data_id",
-                     "tweet_id",
-                     "branch_level",
+    RESULT_HEADER = ["ID",
+                     "Correct",
                      "Ground truth",
                      "Prediction",
                      "Confidence",
-                     "Text",
-                     "Processed_Text"]
+                     "Text"]
 
     def init_result_logging(self):
         self.TMP_FNAME = f"introspection/fulltext_{get_timestamp()}_{socket.gethostname()}"
         csvf = open(f"{self.TMP_FNAME}.tsv", mode="w")
         writer = csv.writer(csvf, delimiter='\t')
-        writer.writerow(Text_Framework.RESULT_HEADER)
+        writer.writerow(self.RESULT_HEADER)
         global row
         row = 0
         workbook = xlsxwriter.Workbook(f"{self.TMP_FNAME}.xlsx")
         worksheet = workbook.add_worksheet()
-        for col in range(len(Text_Framework.RESULT_HEADER)):
-            worksheet.write(row, col, Text_Framework.RESULT_HEADER[col])
+        for col in range(len(self.RESULT_HEADER)):
+            worksheet.write(row, col, self.RESULT_HEADER[col])
         row += 1
         return csvf, workbook, worksheet, writer

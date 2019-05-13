@@ -3,7 +3,6 @@ from task_A.frameworks.base_framework import Base_Framework
 from task_A.frameworks.base_framework_seq import Base_Framework_SEQ
 from task_A.frameworks.bert_framework import BERT_Framework
 from task_A.frameworks.bert_framework_for_veracity import BERT_Framework_for_veracity
-from task_A.frameworks.bert_framework_hyperparam_tuning import BERT_Framework_Hyperparamopt
 from task_A.frameworks.bert_framework_with_f import BERT_Framework_with_f
 from task_A.frameworks.bert_introspection_framework import BERT_Introspection_Framework
 from task_A.frameworks.self_att_with_bert_tokenizing import SelfAtt_BertTokenizing_Framework
@@ -48,8 +47,8 @@ class SolutionA:
             fworkf = Text_Feature_Framework
         elif self.config["active_model"] == "BERT_textonly":
             modelf = BertModelForStanceClassification
-            fworkf = BERT_Framework_Hyperparamopt
-            # fworkf = BERT_Framework
+            # fworkf = BERT_Framework_Hyperparamopt
+            fworkf = BERT_Framework
         elif self.config["active_model"] == "features_seq":
             modelf = Baseline
             fworkf = Base_Framework_SEQ
@@ -73,7 +72,7 @@ class SolutionA:
             modelf = BertModelForStanceClassification
             fworkf = BERT_Introspection_Framework
         modelframework = fworkf(self.config["models"][self.config["active_model"]])
-        modelframework.train(modelf)
+        modelframework.fit(modelf)
 
     def submit_model(self, model):
         """

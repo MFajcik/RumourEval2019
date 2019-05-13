@@ -33,7 +33,7 @@ class BERT_Framework_for_veracity(Base_Framework):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", cache_dir="./.BERTcache",
                                                        do_lower_case=True)
 
-    def run_epoch(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
+    def train(self, model, lossfunction, optimizer, train_iter, config, verbose=False):
         total_batches = len(train_iter.data()) // train_iter.batch_size
         if verbose:
             pbar = tqdm(total=total_batches)
@@ -95,7 +95,7 @@ class BERT_Framework_for_veracity(Base_Framework):
             model.train()
         logging.info(f"Writing results into {fname}")
 
-    def train(self, modelfunc):
+    def fit(self, modelfunc):
         config = self.config
 
         fields = RumourEval2019Dataset_BERTTriplets_with_Tags.prepare_fields_for_text()
@@ -151,7 +151,7 @@ class BERT_Framework_for_veracity(Base_Framework):
             # self.predict("answer_BERT_textnsource.json", model, dev_iter)
             for epoch in range(config["hyperparameters"]["epochs"]):
                 self.epoch = epoch
-                self.run_epoch(model, lossfunction, optimizer, train_iter, config)
+                self.train(model, lossfunction, optimizer, train_iter, config)
                 log_results = epoch > 5
                 train_loss, train_acc, _ = self.validate(model, lossfunction, train_iter, config, log_results=False)
                 validation_loss, validation_acc, val_acc_per_level = self.validate(model, lossfunction, dev_iter,
