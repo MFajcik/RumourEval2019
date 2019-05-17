@@ -21,15 +21,17 @@ All models have been trained on RTX 2080 Ti (with 12 GB memory).
 
 ## Table of contents
 - [Replication of results](#replication-of-results)
-  * [Replication from ensemble predictions](#replication-from-enseble-predictions)
+  * [Replication from ensemble predictions](#replication-from-ensemble-predictions)
   * [Replication via training new models](#replication-via-training-new-models)
+  * [Replication of BiLSTM+SelfAtt baseline result](#replication-of-bilstm-selfatt-baseline-result)
 - [Prediction examples](#prediction-examples)
-  * [Structured self-attention](#structured-self-attention)
+  * [Structured self-attention with BERT-pretrained embeddings (BiLSTM+SelfAtt)](#structured-self-attention-with-bert-pretrained-embeddings--bilstm-selfatt-)
   * [BERT](#bert)
 - [Visualisation](#visualisation)
   * [Attention from BERT - images](#attention-from-bert---images)
-  * [Structured Self-attention with BERT-pretrained embeddings](#structured-self-attention-with-bert-pretrained-embeddings)
-
+  * [Attention in structured self-attention with BERT-pretrained embeddings (BiLSTM+SelfAtt)](#attention-in-structured-self-attention-with-bert-pretrained-embeddings--bilstm-selfatt-)
+  * [F1's sensitivity to misclassification](#f1-s-sensitivity-to-misclassification)
+  
 ## Replication of results
 ### Replication from ensemble predictions
 Since each trained model is saved in checkpoints of size 1.3GB, we do not provide these online.
@@ -67,3 +69,14 @@ The images of multi-head attention from all heads and layers from trained BERT m
 `xlsx` file containing attention visualisation per each input of validation set in trained `BiLSTM+SelfAtt` model is available [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.xlsx). 
 The column description is shown in its first row.
 For each example, column `'text'` contains numerical values of attention and visualisations of average over all attention "heads" and attention of each "head" (in this row order). Note, that at time attention is made, the input is already passed via 1-layer BiLSTM (see [original paper](https://arxiv.org/abs/1703.03130) for more details).
+
+
+### F1's sensitivity to misclassification
+This table shows a relative F1 difference per 1 sample in case of each class misclassification (in other words increase in F1 score, if 1 more example of this class is classified correctly)
+
+| Class   | F1 difference in % |
+| ------- |------------------- |
+| Query   | 0,219465           |
+| Support | 0,1746285          |
+| Deny    | 0,2876426          |
+| Comment | 0,0849897          |
