@@ -5,6 +5,8 @@ __Authors__:
 * Lukáš Burget
 * Pavel Smrž
 
+In case of any questions, please mail to ifajcik@fit.vutbr.cz.
+
 This is a official implementation we have used in the SemEval-2019 Task 7. Our preview of submitted paper under review is available at [arXiv](https://arxiv.org/pdf/1902.10126v1.pdf).
 All models have been trained on RTX 2080 Ti (with 12 GB memory).
 
