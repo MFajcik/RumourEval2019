@@ -32,7 +32,7 @@ All models have been trained on RTX 2080 Ti (with 12 GB memory).
 - [Visualisation](#visualisation)
   * [Attention from BERT - images](#attention-from-bert---images)
   * [Attention in structured self-attention with BERT-pretrained embeddings (BiLSTM+SelfAtt)](#attention-in-structured-self-attention-with-bert-pretrained-embeddings--bilstm-selfatt-)
-  * [F1's sensitivity to misclassification](#f1-s-sensitivity-to-misclassification)
+- [F1's sensitivity to misclassification](#f1-s-sensitivity-to-misclassification)
   
 ## Replication of results
 ### Replication from ensemble predictions
@@ -73,7 +73,7 @@ The column description is shown in its first row.
 For each example, column `'text'` contains numerical values of attention and visualisations of average over all attention "heads" and attention of each "head" (in this row order). Note, that at time attention is made, the input is already passed via 1-layer BiLSTM (see [original paper](https://arxiv.org/abs/1703.03130) for more details).
 
 
-### F1's sensitivity to misclassification
+## F1's sensitivity to misclassification
 This table shows a relative F1 difference per 1 sample in case of each class misclassification (in other words increase in F1 score, if 1 more example of this class is classified correctly)
 
 | Class   | F1 difference in % |
