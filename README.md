@@ -78,7 +78,7 @@ This table shows a relative F1 difference per 1 sample in case of each class mis
 
 | Class   | F1 difference in % |
 | ------- |------------------- |
-| Query   | 0,219465           |
-| Support | 0,1746285          |
-| Deny    | 0,2876426          |
-| Comment | 0,0849897          |
+| Query   | 0.219465           |
+| Support | 0.1746285          |
+| Deny    | 0.2876426          |
+| Comment | 0.0849897          |
