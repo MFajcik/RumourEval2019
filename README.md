@@ -7,17 +7,19 @@ __Authors__:
 
 In case of any questions, please mail to ifajcik@fit.vutbr.cz.
 
-This is a official implementation we have used in the SemEval-2019 Task 7. Our preview of submitted paper under review is available at [arXiv](https://arxiv.org/pdf/1902.10126v1.pdf).
+This is a official implementation we have used in the SemEval-2019 Task 7. Our publication is available [here](https://www.aclweb.org/anthology/S19-2192/).
 All models have been trained on RTX 2080 Ti (with 12 GB memory).
 
 ## Bibtex citation
 ```
-@article{fajcik2019but,
+@inproceedings{fajcik2019but,
   title={BUT-FIT at SemEval-2019 Task 7: Determining the Rumour Stance with Pre-Trained Deep Bidirectional Transformers},
-  author={Fajcik, Martin and Burget, Luk{\'a}{\v{s}} and Smrz, Pavel},
-  journal={arXiv preprint arXiv:1902.10126},
+  author={Fajcik, Martin and Smrz, Pavel and Burget, Lukas},
+  booktitle={Proceedings of the 13th International Workshop on Semantic Evaluation},
+  pages={1097--1104},
   year={2019}
 }
+
 ```
 
 
