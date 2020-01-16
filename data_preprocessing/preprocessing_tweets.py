@@ -6,10 +6,10 @@ This file contains function to load tweets
 import json
 import os
 
+from data_preprocessing.paths import TRAIN_DATA_PREFIX, PATH_TO_TEST_TWITTER
 from data_preprocessing.tree2branches import tree2branches
 
 # %%
-TRAIN_DATA_PREFIX = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/rumoureval-2019-training-data"
 
 
 def load_true_labels():
@@ -31,7 +31,8 @@ def load_true_labels():
 
     return tweet_label_dict, veracity_label_dict
 
-def load_test_data_twitter(set_path ="/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/rumoureval-2019-test-data/twitter-en-test-data"):
+
+def load_test_data_twitter(set_path=PATH_TO_TEST_TWITTER):
     allconv = []
     train_dev_split = {}
     train_dev_split['dev'] = []
@@ -39,12 +40,12 @@ def load_test_data_twitter(set_path ="/home/ifajcik/Work/NLP/semeval_2019/7_Rumo
     train_dev_split['test'] = []
     tweet_data = sorted(os.listdir(set_path))
     newfolds = [i for i in tweet_data if i[0] != '.']
-    tweet_data = newfolds # conversation ids, source post id == conversation id
+    tweet_data = newfolds  # conversation ids, source post id == conversation id
     conversation = {}
     # build conversations for tweet group
 
     for tweet_topic in tweet_data:
-        path = os.path.join(set_path,tweet_topic)
+        path = os.path.join(set_path, tweet_topic)
         tweet_topic_data = sorted(os.listdir(path))
         tweet_topic_data = [i for i in tweet_topic_data if i[0] != '.']
         for foldr in tweet_topic_data:
@@ -136,6 +137,7 @@ def load_test_data_twitter(set_path ="/home/ifajcik/Work/NLP/semeval_2019/7_Rumo
 
     return train_dev_split
 
+
 # %%
 def load_dataset():
     # Load labels and split for task A and task B
@@ -160,7 +162,7 @@ def load_dataset():
         path_to_tweets = os.path.join(path_to_folds, fold)
         tweet_data = sorted(os.listdir(path_to_tweets))
         newfolds = [i for i in tweet_data if i[0] != '.']
-        tweet_data = newfolds # conversation ids, source post id == conversation id
+        tweet_data = newfolds  # conversation ids, source post id == conversation id
         conversation = {}
         # build conversations for tweet group
         for foldr in tweet_data:

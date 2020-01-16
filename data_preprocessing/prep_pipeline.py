@@ -40,26 +40,21 @@ def convert_label(label):
         print(label)
 
 
-def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'], use_reddit_data=True):
+def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'], use_reddit_data=True,
+                  extract_w2v_f=False):
     path = 'data_preprocessing/saved_data_' + dataset
     folds = {}
-    # folds = load_dataset()
-    #
-    # if use_reddit_data:
-    # reddit = load_data()
-    #
-    #     folds['train'].extend(reddit['train'])
-    #     folds['dev'].extend(reddit['dev'])
-    #     folds['test'].extend(reddit['test'])
-    folds = load_test_data_twitter()
-    reddit_data = load_test_data_reddit()
-    folds['test'].extend(reddit_data['test'])
-    #
-    #     folds['train'].extend(reddit['train'])
-    #     folds['dev'].extend(reddit['dev'])
-    #     folds['test'].extend(reddit['test'])
+    folds = load_dataset()
 
-    loadW2vModel()
+    folds["test"] = load_test_data_twitter()["test"]
+    if use_reddit_data:
+        reddit = load_data()
+        folds['train'].extend(reddit['train'])
+        folds['dev'].extend(reddit['dev'])
+        reddit_test_data = load_test_data_reddit()['test']
+        folds["test"].extend(reddit_test_data)
+    if extract_w2v_f:
+        loadW2vModel()
 
     # %%
     # data folds , i.e. train, dev, test
@@ -96,8 +91,8 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
 
             # build data for source tweet for veracity
             for i in range(len(thread_features_array)):
-                if not fset_name.endswith("test"):
-                    fold_veracity_labels.append(convert_label(-1))
+                if fold != "test" and not fset_name.endswith("test"):
+                    fold_veracity_labels.append(convert_label(conversation['veracity']))
                 conv_ids.append(conversation['id'])
 
         # % 0 supp, 1 comm,2 deny, 3 query
@@ -124,8 +119,9 @@ def prep_pipeline(dataset='RumEval2019', fset_name=None, feature_set=['avgw2v'],
                             "id": cnt,
                             "branch_id": f"{fold_idx}.{idx}",
                             "tweet_id": tweet_ids_branch[idx],
-                            "stance_label": branch_labels[idx],
-                            "veracity_label": fold_veracity_labels[fold_idx] if e[idx]["issource"] > 0 else -1,
+                            "stance_label": branch_labels[idx] if not fold == "test" else -1,
+                            "veracity_label": (fold_veracity_labels[fold_idx] if e[idx][
+                                                                                     "issource"] > 0 else -1) if not fold == "test" else -1,
                             "raw_text": e[idx]["raw_text"],
                             "raw_text_prev": e[idx - 1]["raw_text"] if idx - 1 > -1 else "",
                             "raw_text_src": e[0]["raw_text"] if idx - 1 > -1 else "",
@@ -373,4 +369,4 @@ def main(feats="BUT_Features"):
 
 
 if __name__ == '__main__':
-    main()
+    main("BUT_TEXT")

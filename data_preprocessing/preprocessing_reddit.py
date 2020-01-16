@@ -8,9 +8,9 @@ import json
 import os
 
 # %%
+from data_preprocessing.paths import PATH_TO_TEST_REDDIT, TRAIN_DATA_PREFIX
 from data_preprocessing.tree2branches import tree2branches
 
-TRAIN_DATA_PREFIX = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/rumoureval-2019-training-data"
 
 
 def listdir_nohidden(path):
@@ -20,7 +20,7 @@ def listdir_nohidden(path):
     return new_contents
 
 
-def load_test_data_reddit(path = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/rumoureval-2019-test-data/reddit-test-data"):
+def load_test_data_reddit(path = PATH_TO_TEST_REDDIT):
 
     conversation_ids = listdir_nohidden(path)
     conversations = {}

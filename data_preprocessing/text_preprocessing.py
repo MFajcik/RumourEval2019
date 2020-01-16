@@ -8,7 +8,7 @@ import spacy
 from nltk.corpus import stopwords
 from spacy.symbols import PUNCT, SYM, ADJ, CCONJ, NUM, DET, ADV, ADP, VERB, NOUN, PROPN, PART, PRON, ORTH
 
-from utils import DotDict
+from utils.utils import DotDict
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

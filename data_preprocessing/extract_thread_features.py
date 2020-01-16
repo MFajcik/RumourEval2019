@@ -8,7 +8,7 @@ import re
 import nltk
 import numpy as np
 
-from data_preprocessing.help_prep_functions import sumw2v, getW2vCosineSimilarity
+from data_preprocessing.help_prep_functions import sumw2v, getW2vCosineSimilarity, model_GN
 from data_preprocessing.text_preprocessing import preprocess_text, initopts
 from data_preprocessing.tree2branches import tree2branches
 
@@ -77,9 +77,11 @@ def extract_thread_features(conversation):
             feature_dict['hasswearwords'] += 1
     uppers = [l for l in raw_txt if l.isupper()]
     feature_dict['capitalratio'] = float(len(uppers)) / len(raw_txt)
-    feature_dict['Word2VecSimilarityWrtOther'] = getW2vCosineSimilarity(
-        tokens, otherthreadtokens)
-    feature_dict['avgw2v'] = sumw2v(tw, avg=True)
+
+    if model_GN is not None:
+        feature_dict['Word2VecSimilarityWrtOther'] = getW2vCosineSimilarity(
+            tokens, otherthreadtokens)
+        feature_dict['avgw2v'] = sumw2v(tw, avg=True)
     postag_tuples = nltk.pos_tag(tokens)
     postag_list = [x[1] for x in postag_tuples]
     possible_postags = ['WRB', 'WP$', 'WP', 'WDT', 'VBZ', 'VBP', 'VBN', 'VBG',
@@ -92,7 +94,7 @@ def extract_thread_features(conversation):
         postag_binary[possible_postags.index(tok)] = 1
     feature_dict['pos'] = postag_binary
     false_synonyms = ['false', 'bogus', 'deceitful', 'dishonest',
-                      'distorted', 'erroneous', 'error','fake', 'fanciful',
+                      'distorted', 'erroneous', 'error', 'fake', 'fanciful',
                       'faulty', 'fictitious', 'fraudulent',
                       'improper', 'inaccurate', 'incorrect',
                       'invalid', 'misleading', 'mistaken', 'phony',
@@ -101,7 +103,7 @@ def extract_thread_features(conversation):
                       'casuistic', 'concocted', 'cooked-up',
                       'counterfactual', 'deceiving', 'delusive', 'ersatz',
                       'fallacious', 'fishy', 'illusive', 'imaginary',
-                      'inexact', 'lying','lie','reject', 'mendacious',
+                      'inexact', 'lying', 'lie', 'reject', 'mendacious',
                       'misrepresentative', 'off the mark', 'sham',
                       'sophistical', 'trumped up', 'unsound']
     false_antonyms = ['accurate', 'authentic', 'correct', 'fair', 'faithful',
@@ -335,15 +337,17 @@ def extract_thread_features_incl_response(conversation):
             feature_dict['capitalratio'] = float(len(uppers)) / l
         else:
             feature_dict['capitalratio'] = 0
-        feature_dict['Word2VecSimilarityWrtOther'] = getW2vCosineSimilarity(
-            tokens, otherthreadtokens)
-        feature_dict['Word2VecSimilarityWrtSource'] = getW2vCosineSimilarity(
-            tokens, srctokens)
-        feature_dict['Word2VecSimilarityWrtPrev'] = getW2vCosineSimilarity(
-            tokens, prevtokens)
-        feature_dict['avgw2v'] = sumw2v(
-            tw,
-            avg=True)
+
+        if model_GN is not None:
+            feature_dict['Word2VecSimilarityWrtOther'] = getW2vCosineSimilarity(
+                tokens, otherthreadtokens)
+            feature_dict['Word2VecSimilarityWrtSource'] = getW2vCosineSimilarity(
+                tokens, srctokens)
+            feature_dict['Word2VecSimilarityWrtPrev'] = getW2vCosineSimilarity(
+                tokens, prevtokens)
+            feature_dict['avgw2v'] = sumw2v(
+                tw,
+                avg=True)
 
         # Added textual features
         feature_dict['raw_text'] = raw_txt
