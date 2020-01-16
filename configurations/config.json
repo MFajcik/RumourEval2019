@@ -177,9 +177,9 @@
         "type_vocab_size": 2,
         "vocab_size": 30522
       },
-      "train_data": "data_preprocessing/saved_data_RumEval2019_SEQ/train/train.json",
-      "dev_data": "data_preprocessing/saved_data_RumEval2019_SEQ/dev/dev.json",
-      "test_data": "data_preprocessing/saved_data_RumEval2019_TEST/test/test_labelled.json",
+      "train_data": "data_preprocessing/saved_data_RumEval2019/train/train.json",
+      "dev_data": "data_preprocessing/saved_data_RumEval2019/dev/dev.json",
+      "test_data": "data_preprocessing/saved_data_RumEval2019/test/test.json",
       "cuda": true
     },
     "BERT_introspection": {
