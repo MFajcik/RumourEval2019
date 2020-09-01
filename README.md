@@ -86,30 +86,21 @@ This table shows a relative F1 difference per 1 sample in case of each class mis
 | Comment | 0.0849897          |
 
 ## Processing the original data into model's format and running the training
-install environment from environment.yml
-    `conda env create -f environment.yml`
-
-activate environment
-    `source activate Rumoureval2019`
-
-download en models for spacy
-    `python -m spacy download en`
-
-download data and change the paths accordingly, all paths can be changed in `data_preprocessing/paths.py`
-
-
+* install environment from environment.yml  
+    `conda env create -f environment.yml`  
+* activate environment  
+    `source activate Rumoureval2019`  
+* download en models for spacy  
+    `python -m spacy download en`  
+* download data and change the paths accordingly, all paths can be changed in `data_preprocessing/paths.py`  
 run everything from root directory (so the working directory is root directory)
-
-
-set PYTHONPATH for root directory
+* set PYTHONPATH for root directory  
     `export PYTHONPATH=<your_project_root_directory>`
-
-Process data
-  `python data_preprocessing/prep_pipeline.py`
-
+* process data  
+  `python data_preprocessing/prep_pipeline.py`  
 The preprocessed data should be available in data_preprocessing/saved_data_RumEval2019
 
 
 Then you should be able to run the model
-Run BERT_textonly
+Run BERT_textonly  
   `python solver.py`
