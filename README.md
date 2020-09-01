@@ -93,8 +93,7 @@ This table shows a relative F1 difference per 1 sample in case of each class mis
 * download en models for spacy  
     `python -m spacy download en`  
 * download data and change the paths accordingly, all paths can be changed in `data_preprocessing/paths.py`  
-run everything from root directory (so the working directory is root directory)
-* set PYTHONPATH for root directory  
+* run everything from root directory (so the working directory is root directory), set PYTHONPATH for root directory  
     `export PYTHONPATH=<your_project_root_directory>`
 * process data  
   `python data_preprocessing/prep_pipeline.py`  
