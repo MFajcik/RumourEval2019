@@ -1,3 +1,5 @@
+# Original task's data are available at https://figshare.com/articles/RumourEval_2019_data/8845580
+
 # TRAIN_DATA_PREFIX - folder that contains:
 #dev-key.json  reddit-dev-data  reddit-training-data  train-key.json  twitter-english
 TRAIN_DATA_PREFIX = "/home/ifajcik/Work/NLP/semeval_2019/7_Rumour_Eval/rumoureval-2019-training-data"
