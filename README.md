@@ -92,7 +92,7 @@ This table shows a relative F1 difference per 1 sample in case of each class mis
     `source activate Rumoureval2019`  
 * download en models for spacy  
     `python -m spacy download en`  
-* download data and change the paths accordingly, all paths can be changed in `data_preprocessing/paths.py`  
+* download [data](https://figshare.com/articles/RumourEval_2019_data/8845580) and change the paths accordingly, all paths can be changed in `data_preprocessing/paths.py`  
 * run everything from root directory (so the working directory is root directory), set PYTHONPATH for root directory  
     `export PYTHONPATH=<your_project_root_directory>`
 * process data  
