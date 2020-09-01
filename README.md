@@ -101,6 +101,5 @@ run everything from root directory (so the working directory is root directory)
 The preprocessed data should be available in data_preprocessing/saved_data_RumEval2019
 
 
-Then you should be able to run the model
-Run BERT_textonly  
+Then you should be able to run the model BERT_textonly  
   `python solver.py`
