@@ -62,15 +62,15 @@ Duration of 1 training: ~ 2.7 minutes
 
 ## Prediction examples
 ### Structured self-attention with BERT-pretrained embeddings (BiLSTM+SelfAtt)
-`tsv` file containing predictions, ground truth, confidence and model inputs of trained `BiLSTM+SelfAtt` model is available [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.tsv).
+`tsv` file containing predictions, ground truth, confidence and model inputs of trained `BiLSTM+SelfAtt` model is available [HERE](https://www.fit.vutbr.cz/~ifajcik/pubdata/introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.tsv).
 ### BERT
-`tsv` file containing predictions, ground truth, confidence and model inputs of trained `TOP-N_s` ensemble (our best published result) is available [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/ensemble_introspection_TOP_N_s.tsv).
+`tsv` file containing predictions, ground truth, confidence and model inputs of trained `TOP-N_s` ensemble (our best published result) is available [HERE](https://www.fit.vutbr.cz/~ifajcik/pubdata/ensemble_introspection_TOP_N_s.tsv).
 ## Visualisation
 ### Attention from BERT - images
-The images of multi-head attention from all heads and layers from trained BERT model for a fixed data point are available for download [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/example_attention.zip). 
+The images of multi-head attention from all heads and layers from trained BERT model for a fixed data point are available for download [HERE](https://www.fit.vutbr.cz/~ifajcik/pubdata/example_attention.zip). 
 
 ### Attention in structured self-attention with BERT-pretrained embeddings (BiLSTM+SelfAtt)
-`xlsx` file containing attention visualisation per each input of validation set in trained `BiLSTM+SelfAtt` model is available [HERE](https://www.stud.fit.vutbr.cz/~ifajcik/introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.xlsx). 
+`xlsx` file containing attention visualisation per each input of validation set in trained `BiLSTM+SelfAtt` model is available [HERE](https://www.fit.vutbr.cz/~ifajcik/pubdata/introspection_task_A.frameworks.self_att_with_bert_tokenizing.SelfAtt_BertTokenizing_Framework_F1_0.472417_LOSS_1.019169.xlsx). 
 The column description is shown in its first row.
 For each example, column `'text'` contains numerical values of attention and visualisations of average over all attention "heads" and attention of each "head" (in this row order). Note, that at time attention is made, the input is already passed via 1-layer BiLSTM (see [original paper](https://arxiv.org/abs/1703.03130) for more details).
 
